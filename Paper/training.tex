@@ -1,0 +1,39 @@
+We train SGPE on a 10-million-sentence subset of the Sinhala portion of the polyglots/MADLAD\_CulturaX\_cleaned collection\footnote{\url{https://huggingface.co/datasets/polyglots/MADLAD_CulturaX_cleaned}} on Hugging Face. Light preprocessing removed some identified noises while preserving natural orthographic and syntactic diversity. The corpus was split 95\%/5\% into training and held-out sets, resulting in a 536,508-sentence evaluation partition containing 59.3 million characters.
+
+Let $D = \{w_1, \dots, w_n\}$ be the training corpus. The SGPE training procedure is defined by the following algorithm:
+
+\begin{enumerate}
+\item \textbf{Pre-tokenization:} For each $w_i \in D$, compute the syllable stream $s_i \leftarrow$ LinguisTrie$(w_i, \text{leading\_space=True})$ and partition into word spans via boundary detection (whitespace or non-Sinhala passthrough tokens).
+\item \textbf{Word-type counting:} Build a counter WT over unique syllable tuples appearing within each word span.
+\item \textbf{Pruning:} For each syllable $s$, compute its corpus frequency as the sum of frequencies of all word types containing $s$. Replace occurrences of syllables with frequency below threshold $\theta$ by the UNK sentinel $\bot$.
+\item \textbf{Initialization:} The base vocabulary $V$ is formed from the five special tokens, all boundary tokens, and surviving syllables (frequency $\ge \theta$). Each word type is encoded as an integer-ID sequence.
+\item \textbf{Merge loop:} While $|V| < V_{\text{target}}$:
+  \begin{itemize}
+  \item Select the highest-frequency adjacent pair $(a,b)$ \emph{within word boundaries} using a max-heap with lazy deletion on pair counts.
+  \item If the frequency falls below $f_{\min}$, terminate.
+  \item Add the merged token $a+b$ to $V$ and record the merge rule.
+  \item Update pair counts incrementally for only the affected word types (see Section 5.1).
+  \end{itemize}
+\end{enumerate}
+
+Merges are strictly scoped to word boundaries, ensuring no cross-word tokens are formed. This design inherits the three architectural constraints introduced in Section 4.
+
+\subsection{Incremental Pair-Count Update}
+
+After each merge $(a,b) \to ab$, only word types containing the pair are visited via the inverted token index. For each such word type $w$ of frequency $f(w)$:
+
+\begin{itemize}
+\item $\text{count}(\text{prev}(a), a) \mathrel{-=} f(w)$
+\item $\text{count}(b, \text{next}(b)) \mathrel{-=} f(w)$
+\item $\text{count}(\text{prev}(a), ab) \mathrel{+=} f(w)$
+\item $\text{count}(ab, \text{next}(b)) \mathrel{+=} f(w)$
+\item $\text{count}(a,b) = 0$
+\end{itemize}
+
+This reduces each merge step from $\mathcal{O}(|D|)$ to $\mathcal{O}(k \cdot L)$, where $k$ is the number of affected word types and $L$ is average word length. Pair counts are maintained in a max-heap with lazy deletion, yielding $\mathcal{O}(\log P)$ per heap operation, where $P$ is the number of distinct pairs.
+
+The overall training complexity is therefore
+\[
+T_{\text{train}} = \mathcal{O}\!\left(\frac{C}{W} + V \cdot k \cdot L \cdot \log P\right),
+\]
+where $C$ is total character count, $W$ is the number of parallel CPU workers, $V$ is target vocabulary size, and $P \le |V_0|^2$. The entire pipeline runs on commodity CPU hardware with no GPU acceleration required.

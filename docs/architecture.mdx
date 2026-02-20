@@ -1,0 +1,153 @@
+# Architecture
+
+SGPE uses a two-layer architecture that combines linguistic knowledge with statistical learning. This design ensures that Sinhala grapheme clusters are never broken while still achieving excellent compression.
+
+## High-Level Overview
+
+```
+Raw Unicode Input
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│  LAYER 1 — LinguisTrie                  │
+│  Deterministic Finite Automaton          │
+│  Rule-based, no training required        │
+│  Enforces: Zero-Breakage Guarantee       │
+│                                        │
+│  Input:  raw Unicode codepoints          │
+│  Output: stream of syllable strings      │
+└─────────────────────────────────────────┘
+       │
+       │  syllable stream
+       ▼
+┌─────────────────────────────────────────┐
+│  LAYER 2 — GPE (Grapheme Pair Encoding) │
+│  Modified BPE over syllable stream       │
+│  Learns statistical merges from corpus   │
+│                                        │
+│  Input:  syllable stream from Layer 1    │
+│  Output: final token IDs                │
+└─────────────────────────────────────────┘
+       │
+       ▼
+Final Token Sequence [int IDs]
+```
+
+## Layer 1: LinguisTrie
+
+LinguisTrie is a deterministic finite automaton that segments Unicode text into linguistic atoms — syllables that can never be split without destroying their semantic meaning.
+
+### Character Classes
+
+Every Unicode codepoint is classified into one of seven categories:
+
+| Class | Symbol | Unicode Range | Count |
+|-------|--------|---------------|-------|
+| Consonant | C | U+0D9A–U+0DC6 | 45 |
+| Vowel (svara) | V | U+0D85–U+0D96 | 18 |
+| Pili (vowel sign) | P | U+0DCF–U+0DDF, U+0DF2–U+0DF3 | 19 |
+| HAL (virama) | H | U+0DCA | 1 |
+| ZWJ | Z | U+200D | 1 |
+| Post-modifier | M | U+0D82, U+0D83 | 2 |
+| Other | O | everything else | — |
+
+### How It Works
+
+The tokenizer processes text with a simple loop:
+
+1. **Start at a consonant**: Mark position as syllable beginning
+2. **Look ahead for HAL**: If found, check what follows:
+   - HAL + ZWJ + Consonant → explicit conjunct (yansaya/rakaransaya)
+   - HAL + Consonant → implicit conjunct
+   - HAL + anything else → terminal virama (syllable ends)
+3. **After cluster**: Look for one vowel sign (pili) OR terminal HAL
+4. **Post-modifiers**: Optionally absorb anusvara (ං) or visarga (ඃ)
+
+The key insight: **lookahead depth is exactly 2 codepoints**. This is fixed and constant, giving O(N) time complexity.
+
+### The Zero-Breakage Guarantee
+
+Because LinguisTrie processes codepoints in order and absorbs all related characters (HAL, ZWJ, vowel signs, modifiers) before emitting a token, these sequences can never be split:
+
+- Consonant + HAL + ZWJ + consonant (e.g., ක්‍ර)
+- Consonant + HAL + consonant (e.g., ක්ෂ)
+- Consonant + vowel sign (e.g., කා)
+- Consonant + anusvara/visarga (e.g., කං)
+
+### Leading Space Mode
+
+When `leading_space=True`, whitespace before a Sinhala word gets attached to the first token:
+
+```
+Input:    " ශ්‍රී ලංකා"
+Output:   [" ශ්‍රී", " ලංකා"]
+```
+
+This follows the SentencePiece/GPT-2 convention. It lets Layer 2 learn whole-word tokens that implicitly encode word boundaries.
+
+## Layer 2: GPE (Grapheme Pair Encoding)
+
+GPE is a modified BPE that operates on syllables from Layer 1 instead of raw characters.
+
+### Why This Matters
+
+Standard BPE starts with individual bytes or codepoints:
+
+```
+Standard BPE: ['ක', '්', '‍', 'ර', 'ා', ...]
+```
+
+A frequency-based merger might split ක්‍ර (kra) at the HAL boundary because 'ක' + '්' appears frequently separately.
+
+GPE starts with syllables:
+
+```
+GPE: ['ක්‍ර', 'ශ්', 'ල', 'ං', ...]
+```
+
+The merger never sees 'ක' + '්' as adjacent tokens — they're already combined in the syllable 'ක්‍ර'. The zero-breakage guarantee is preserved.
+
+### Training Pipeline
+
+1. **Pre-tokenization**: Run Layer 1 on all sentences, split into word groups
+2. **Word-type counting**: Count unique syllable-tuple patterns
+3. **Syllable pruning**: Replace rare syllables (< prune_freq) with [UNK]
+4. **Vocabulary init**: Add boundary tokens + surviving syllables
+5. **Merge loop**: Find highest-frequency pair, merge, update counts
+
+### Incremental Updates
+
+The trainer uses an inverted index to track which word types contain each symbol. When a merge happens, only affected word types are updated — not the entire corpus. This makes training fast even with millions of word types.
+
+## Data Flow Example
+
+Let's trace `ප්‍රත්‍යක්ෂ` (pratyaksha, "perception"):
+
+**Step 1: Layer 1 (LinguisTrie)**
+
+```
+ප  → consonant (start)
+්  → HAL (found)
+‍  → ZWJ (found)
+ර  → consonant after ZWJ → absorb ප්‍ර
+ත  → consonant (new start)
+්  → HAL
+‍  → ZWJ  
+ය  → consonant → absorb ත්‍ය
+ක  → consonant
+්  → HAL
+ෂ  → consonant → absorb ක්ෂ
+
+Output: ["ප්‍ර", "ත්‍ය", "ක්ෂ"]
+```
+
+**Step 2: Layer 2 (GPE)**
+
+If trained, common pairs merge:
+- ප්‍ර + ත්‍ය → ප්‍රත්‍ය
+- ප්‍රත්‍ය + ක්ෂ → ප්‍රත්‍යක්ෂ
+
+Output (trained): ["ප්‍රත්‍යක්ෂ"]  
+Output (untrained): ["ප්‍ර", "ත්‍ය", "ක්ෂ"]
+
+Compare with OpenAI o200k_base: ["ප්", "‍ර", "ත්", "‍ය", "ක්", "ෂ"] — six tokens, some meaningless.

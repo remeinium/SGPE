@@ -1,0 +1,141 @@
+# Training Guide
+
+This guide covers training your own SGPE tokenizer on a custom corpus.
+
+## Prerequisites
+
+You need a JSONL file with one sentence per line:
+
+```json
+{"text": "First sentence here"}
+{"text": "Second sentence here"}
+```
+
+The tokenizer expects a `text` field. If your data has a different structure, you'll need to preprocess it.
+
+## Quick Start
+
+### 1. Download Training Data
+
+```bash
+python data/download_dataset.py --n_sentences 100000
+```
+
+This downloads Sinhala sentences from the MADLAD/CulturaX dataset on HuggingFace. Adjust `--n_sentences` to get more or fewer sentences (use `0` for all ~10M).
+
+### 2. Clean the Data (Optional but Recommended)
+
+```bash
+python clean_data.py
+```
+
+This removes orphan HAL, ZWJ, and vowel signs that aren't attached to a consonant — common artifacts in web-crawled text.
+
+### 3. Train the Tokenizer
+
+```bash
+python gpe_trainer.py \
+    --train_file data/train.jsonl \
+    --vocab_size 100000 \
+    --min_freq 2 \
+    --prune_freq 100 \
+    --output_dir output
+```
+
+## Configuration Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--vocab_size` | 100000 | Final vocabulary size including special tokens |
+| `--min_freq` | 2 | Stop merging when best pair frequency drops below this |
+| `--prune_freq` | 100 | Replace syllables with fewer than this many occurrences with [UNK] |
+| `--num_workers` | auto | Parallel preprocessing workers (defaults to CPU count - 1) |
+| `--checkpoint_every` | 5000 | Save checkpoint every N merges |
+| `--resume` | none | Path to checkpoint to resume from |
+
+### Tuning Tips
+
+**vocab_size**: 
+- 30k–50k works well for Sinhala-only models
+- For multilingual tokenizers, allocate 8k–15k for Sinhala
+
+**prune_freq**:
+- Lower values = more coverage but more noise
+- 100 is a good production default (produces ~0.1% UNK rate)
+- Set to 0 to disable pruning
+
+**min_freq**:
+- 1 = merge until vocab_size is reached, even for rare pairs
+- 2+ = stop early when pairs become infrequent
+
+## Using the Orchestrator
+
+The orchestrator provides an interactive menu for the full pipeline:
+
+```bash
+python orchestrator.py
+```
+
+You'll see a menu:
+
+```
+┌────┬─────────────────────────────┬─────────────────────────────────────┐
+│ ID │ Step                        │ Description                         │
+├────┼─────────────────────────────┼─────────────────────────────────────┤
+│ 1  │ Train                       │ Run GPE trainer → vocab.json        │
+│ 2  │ Evaluate                    │ Benchmark vs other tokenizers       │
+│ 3  │ Export                      │ Re-export to HuggingFace format    │
+│ 4  │ Run Tests                   │ Launch battle test suite           │
+│ 5  │ Full Pipeline               │ Train → Evaluate → Export → Tests  │
+│ C  │ Configure                   │ Edit paths and parameters          │
+│ Q  │ Quit                        │                                     │
+└────┴─────────────────────────────┴─────────────────────────────────────┘
+```
+
+Select each step in order to train, evaluate, export, and test.
+
+## Resume Training
+
+If training gets interrupted, resume from the last checkpoint:
+
+```bash
+python gpe_trainer.py \
+    --train_file data/train.jsonl \
+    --resume output/checkpoint_15000.json
+```
+
+The trainer will replay all merges and continue from there.
+
+## Training Output
+
+After training completes, you'll find in your output directory:
+
+- `vocab.json` — Full vocabulary with merges
+- `tokenizer.json` — HuggingFace-compatible format
+- `checkpoint_*.json` — Training checkpoints (for resume)
+
+## Monitoring Progress
+
+The trainer logs progress every 1000 merges:
+
+```
+[  1000/95000] 'ක' + 'ා' -> 'කා' (freq=45231, applied=12849) [23.4s]
+```
+
+Each line shows:
+- Current step / total merges
+- The merge being performed
+- Pair frequency and how many times it was applied
+- Elapsed time
+
+## Performance Notes
+
+Training time depends on corpus size and vocabulary size. On a modern CPU:
+
+| Corpus Size | Vocab Size | Approx. Time |
+|-------------|------------|--------------|
+| 10K sentences | 50K | ~1 minute |
+| 100K sentences | 100K | ~15 minutes |
+| 1M sentences | 100K | ~2 hours |
+
+Memory usage stays under 2GB even for large corpora because we store word types (unique words), not word instances.

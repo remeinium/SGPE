@@ -1,0 +1,66 @@
+\subsection{Evaluation}
+
+We evaluate SGPE on the held-out 5\% split of the 10-million-sentence Sinhala portion of the polyglots/MADLAD\_CulturaX\_cleaned collection, comprising 536,508 sentences and 59.3 million characters. Light preprocessing removed some identified noises while preserving natural orthographic distribution.
+
+Baselines are the production tokenizers of three frontier models: OpenAI’s o200k\_base\footnote{\url{https://github.com/openai/tiktoken}} (used in GPT-4o/5), Llama 4 Scout\footnote{\url{https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct}}, and DeepSeek V3\footnote{\url{https://huggingface.co/deepseek-ai/DeepSeek-V3}}. All comparisons were performed locally with official tokenizers as of February 2026.
+
+We report Token-to-Word Ratio (TWR), characters per token (CPT), and relative token reduction. Structural integrity is measured by zero-breakage violations across an exhaustive test suite.
+
+\subsection{Quantitative Results}
+
+\begin{table}[t]
+\caption{Tokenization efficiency on the 59.3 M-character held-out corpus.}
+\label{tab:main_results}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Tokenizer & TWR & Tokens & CPT & Reduction vs SGPE \\
+\midrule
+SGPE (ours)          & 1.438 & 13,256,494 & 4.48 & -- \\
+OpenAI o200k\_base   & 3.515 & 32,392,475 & 1.83 & 59.1\% \\
+Llama 4 Scout        & 3.673 & 33,854,046 & 1.75 & 60.8\% \\
+DeepSeek V3          & 5.965 & 54,977,828 & 1.08 & 75.8\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{FIGS/TWR.png}
+    \caption{Token-to-Word Ratio Comparison}
+    \label{fig:TWR}
+\end{figure}
+
+SGPE achieves a Token-to-Word Ratio of 1.438 while packing 4.48 characters per token — more than double the density of the strongest baseline. This directly reclaims more than half the context window for over a billion speakers of Abugida scripts.
+
+\subsection{Structural Integrity}
+
+Across an exhaustive battery of 1,703 distinct conjunct formations that cover every possible combination of virama, ZWJ, dependent vowels, and terminal modifiers in Sinhala orthography, SGPE records \textbf{zero breakage violations}. Full-corpus round-trip reconstruction on the 59.3 M-character test set yields \textbf{zero non-UNK mismatches}, confirming that the zero-breakage guarantee proven in Section 4 translates to perfect lossless encoding at scale.
+
+Glitch-token analysis on the final 100 k vocabulary revealed only four near-zero-frequency artifacts (all < 0.004 \% of vocabulary), confirming that syllabic initialization and pruning produce a clean, high-utility token set.
+
+\subsection{Illustrative Examples}
+
+The following examples highlight the difference in practice:
+
+\begin{table}[h!]
+\caption{Example tokenizations of complex Sinhala conjuncts.}
+\label{tab:examples}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Input & SGPE & OpenAI o200k\_base \\
+\midrule
+\sn{ක්‍රෝෂ්ඨ්‍ර}  & 2 tokens & 9 tokens \\
+\sn{ශාස්ත්‍රීය}   & 1 token  & 6 tokens \\
+\sn{ව්‍යාකරණය}   & 2 tokens & 5 tokens \\
+\sn{ප්‍රත්‍යක්ෂ}  & 2 tokens & 5 tokens \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+In each case the SGPE output is a single well-formed linguistic unit or a minimal concatenation thereof, while frontier tokenizers routinely shatter the same conjunct into meaningless sub-sequences.
+
+These results demonstrate that the clean architectural separation of deterministic linguistic pre-processing from statistical compression simultaneously eliminates the Token Tax and restores representational fidelity at industrial scale.

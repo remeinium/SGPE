@@ -1,0 +1,173 @@
+# API Reference
+
+## SGPEEncoder
+
+The main encoder class for tokenization and decoding.
+
+```python
+from encoder import SGPEEncoder
+
+encoder = SGPEEncoder("output/vocab.json")
+```
+
+### Constructor
+
+```python
+def __init__(self, vocab_path: str)
+```
+
+Loads a trained vocabulary from `vocab.json`.
+
+**Parameters:**
+- `vocab_path` (str): Path to the vocabulary JSON file
+
+### Methods
+
+#### encode(text: str) -> list[int]
+
+Convert text to token IDs.
+
+```python
+ids = encoder.encode("සිංහල භාෂාව")
+# [1234, 567, 890, ...]
+```
+
+#### decode(ids: list[int]) -> str
+
+Convert token IDs back to text.
+
+```python
+text = encoder.decode([1234, 567, 890])
+# "සිංහල භාෂාව"
+```
+
+Note: If any ID maps to an unknown token, it produces an empty string for that position.
+
+#### tokenize(text: str) -> list[str]
+
+Tokenize text into string tokens (useful for debugging).
+
+```python
+tokens = encoder.tokenize("සිංහල")
+# ["සිංහල"]
+```
+
+#### layer1_tokenize(text: str) -> list[str]
+
+Run only Layer 1 (LinguisTrie), returning syllables without GPE merges.
+
+```python
+syllables = encoder.layer1_tokenize("ක්‍රමය")
+# ["ක්‍ර", "ම", "ය"]
+```
+
+### Attributes
+
+- `vocab` (dict[str, int]): Token string to ID mapping
+- `merges` (list[tuple[str, str]]): Ordered merge rules (priority = index)
+- `special_tokens` (list[str]): List of special tokens
+- `unk_id` (int): ID used for unknown tokens
+- `leading_space` (bool): Whether leading space mode is enabled
+
+## LinguisTrie
+
+Layer 1 tokenizer — can be used standalone.
+
+```python
+from linguis_trie import LinguisTrie
+
+trie = LinguisTrie()
+```
+
+### Constructor
+
+```python
+def __init__(self)
+```
+
+### Methods
+
+#### tokenize(text: str, leading_space: bool = False) -> list[str]
+
+Segment text into syllables.
+
+```python
+tokens = trie.tokenize("මම යනවා")
+# [" මම", " ය", "න", "වා"]
+
+# With leading space mode
+tokens = trie.tokenize(" මම යනවා", leading_space=True)
+# [" මම", " ය", "න", "වා"]
+```
+
+## GPETrainer
+
+For training new tokenizers (see Training Guide for details).
+
+```python
+from gpe_trainer import GPETrainer
+
+trainer = GPETrainer(
+    vocab_size=100000,
+    min_freq=2,
+    prune_freq=100,
+)
+trainer.train("data/train.jsonl", "output")
+```
+
+## Utility Functions
+
+### segment_into_words(syllables: list[str]) -> list[list[str]]
+
+Split a syllable stream into word groups.
+
+```python
+from gpe_trainer import segment_into_words
+
+words = segment_into_words([" මම", " ය", "න", "වා"])
+# [[" මම"], [" ය", "න", "වා"]]
+```
+
+### _is_boundary_token(token: str) -> bool
+
+Check if a token is non-Sinhala (space, punctuation, digits, etc.).
+
+```python
+from gpe_trainer import _is_boundary_token
+
+_is_boundary_token(" ")      # True
+_is_boundary_token("word")   # True (no Sinhala)
+_is_boundary_token("සිං")  # False
+```
+
+## Export Functions
+
+### export_hf_tokenizer
+
+Export vocabulary to HuggingFace tokenizer.json format.
+
+```python
+from export import export_hf_tokenizer
+
+export_hf_tokenizer(
+    vocab={"[PAD]": 0, "සි": 1, ...},
+    merges=[("ස", "ි"), ...],
+    special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"],
+    output_path="output/tokenizer.json"
+)
+```
+
+## Character Sets
+
+These are available for direct use if needed:
+
+```python
+from linguis_trie import (
+    HAL,          # '\u0DCA' - virama
+    ZWJ,          # '\u200D' - zero-width joiner
+    CONSONANTS,   # set of 45 consonants
+    VOWELS,       # set of 18 independent vowels
+    VOWEL_SIGNS,  # set of 19 vowel signs (pili)
+    POST_MODIFIERS,  # set of 2 (anusvara, visarga)
+)
+```

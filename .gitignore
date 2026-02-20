@@ -1,0 +1,6 @@
+__pycache__/
+*.log
+.env
+*:Zone.Identifier
+Paper/*:Zone.Identifier
+Paper/FIGS/*:Zone.Identifier

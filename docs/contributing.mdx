@@ -1,0 +1,102 @@
+# Contributing
+
+Interested in extending SGPE? Here's how.
+
+## Adding Support for Other Scripts
+
+SGPE's Layer 1 (LinguisTrie) is designed to be script-agnostic. To add a new script:
+
+### Step 1: Define Character Classes
+
+Edit `linguis_trie.py` to map the new script's Unicode ranges:
+
+```python
+# Example: Tamil
+CONSONANTS_TAMIL = {chr(c) for c in range(0x0B94, 0x0BCA)}  # or your ranges
+VOWELS_TAMIL = {...}
+VOWEL_SIGNS_TAMIL = {...}
+HAL_TAMIL = '\u0BCD'  # Tamil virama
+ZWJ = '\u200D'  # Same ZWJ works
+```
+
+### Step 2: Adjust Conjunct Rules
+
+Different scripts form conjuncts differently:
+
+- **Sinhala**: HAL + ZWJ + C (explicit) or HAL + C (implicit)
+- **Tamil**: HAL + C only (no ZWJ)
+- **Myanmar**: May need different patterns
+
+Modify the inner loop in `tokenize()`:
+
+```python
+# Remove ZWJ branch for Tamil:
+while pos < n and _is_hal(text[pos]):
+    if pos + 1 < n and _is_consonant(text[pos + 1]):
+        pos += 2  # Just absorb HAL + C
+        continue
+    break
+```
+
+### Step 3: Test with Battery 6
+
+Run the exhaustive zero-breakage test with your new character sets:
+
+```python
+# In tests/battle.py, add your script's characters to the test
+# Run Battery 6 and verify zero violations
+```
+
+## Extending Layer 2
+
+### Custom Merge Strategies
+
+The merge loop in `gpe_trainer.py` can be modified:
+
+```python
+# Add weighted merges for domain-specific vocabulary
+# e.g., prioritize medical or technical terms
+```
+
+### Adding New Special Tokens
+
+Edit `SPECIAL_TOKENS` in `gpe_trainer.py`:
+
+```python
+SPECIAL_TOKENS = [
+    "[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]",
+    "[BOS]", "[EOS]",  # Add your tokens here
+]
+```
+
+## Code Style
+
+- Use type hints where helpful
+- Keep functions under 100 lines
+- Add docstrings to public APIs
+- Test new code with the battle suite
+
+## Running Tests
+
+Before submitting:
+
+```bash
+# Run all tests
+python tests/battle.py --full_eval
+
+# Quick smoke test
+python tests/battle.py --only complexity zerobreak
+```
+
+## Reporting Issues
+
+When reporting bugs:
+
+1. Include the exact input text
+2. Show expected vs actual output
+3. Note your SGPE version
+4. Include a minimal reproduction case
+
+## Acknowledgments
+
+Contributors and testers are acknowledged in the project README.

@@ -1,0 +1,48 @@
+{
+  "timestamp": "2026-02-18 18:17:19 UTC",
+  "summary": {
+    "total_tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "warnings": 0,
+    "verdict": "PASS"
+  },
+  "batteries": [
+    {
+      "name": "Frontier Benchmarking",
+      "status": "PASS",
+      "details": "Full Corpus (536k sentences) Compared against 3 SOTA tokenizers.",
+      "metrics": {
+        "SGPE": {
+          "twr": 1.438,
+          "total_tokens": 13256494,
+          "chars_per_token": 4.48,
+          "errors": 0
+        },
+        "OpenAI (o200k_base)": {
+          "twr": 3.515,
+          "total_tokens": 32392475,
+          "chars_per_token": 1.83,
+          "errors": 0,
+          "sgpe_reduction": "59.1%"
+        },
+        "Llama 4 Scout": {
+          "twr": 3.673,
+          "total_tokens": 33854046,
+          "chars_per_token": 1.75,
+          "errors": 0,
+          "sgpe_reduction": "60.8%"
+        },
+        "DeepSeek V3": {
+          "twr": 5.965,
+          "total_tokens": 54977828,
+          "chars_per_token": 1.08,
+          "errors": 0,
+          "sgpe_reduction": "75.8%"
+        }
+      },
+      "violation_count": 0,
+      "sample_violations": []
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+The results establish that SGPE's clean architectural separation of linguistic integrity from statistical compression delivers both dramatic efficiency gains and provable structural soundness at industrial scale.
+
+A Token-to-Word Ratio of 1.438 on the 59.3-million-character held-out corpus brings Sinhala tokenization close to the efficiency English enjoys with current tokenizers (typically 1.2--1.4). This represents a 59.1\% reduction versus OpenAI's o200k, 60.8\% versus Llama 4, and 75.8\% versus DeepSeek V3, effectively more than doubling the usable context length for Sinhala text within fixed context windows.
+
+The architectural bet pays off most visibly at the conjunct level. Complex orthographic units that frontier tokenizers routinely shatter into 5--14 fragments are preserved as one or two coherent tokens by SGPE. The zero-breakage guarantee proven in Section 4 holds in practice across the exhaustive 1,703 conjunct test suite, with zero violations observed.
+
+While the vocabulary pruning strategy results in a very low UNK rate (0.46\%), extremely rare compounds still surface as [UNK]. This is expected and preferable to polluting the vocabulary with meaningless sub-character fragments.
+
+Inference is highly efficient: SGPE processes a typical sentence in approximately 10 ms on standard CPU hardware (measured on a 6-core WSL environment), remaining competitive with local frontier implementations and orders of magnitude faster than API round-trips.
+
+\textbf{Limitations.} The present work focuses on Sinhala as a high-complexity proof-of-concept for Abugida scripts. Extending the regular-language formalization and LinguisTrie state machine to Tamil, Devanagari, Myanmar, Khmer and other scripts is the immediate next step. Longer-term, we plan to measure end-to-end downstream gains when pre-training or fine-tuning large language models directly with SGPE tokenizers.
+
+\subsection{Toward Universal Script-Aware Tokenization}
+
+SGPE provides the missing deterministic linguistic barrier required for a truly universal tokenizer. A natural generalization is a hybrid system that (i) detects script runs at the Unicode-script or word level, (ii) routes alphabetic spans to standard BPE, (iii) routes Abugida spans to SGPE, and (iv) exposes a single shared vocabulary to the downstream LLM.
+
+The design invariants are straightforward: every Sinhala (or future Abugida) syllable cluster remains protected by the zero-breakage guarantee, while Latin and punctuation continue to benefit from BPE's proven compression. Shared special tokens, digits, and punctuation are allocated once in the unified ID space. Vocabulary budgeting (e.g., fixed percentages per script family) prevents high-resource scripts from dominating the total size.
+
+This architecture eliminates the current global “one-size-fits-all” compromise and replaces it with per-script optimality. The formal guarantees and O(N) implementation of SGPE make the hybrid not only feasible but also verifiable — exactly the property that has been missing from prior script-aware attempts.

@@ -1,0 +1,73 @@
+Brahmic (Abugida) scripts share a common structural invariant: consonants carry inherent vowels that are modified or suppressed through combining marks, with complex conjuncts formed through virama-like characters and optional Zero-Width Joiners. We hypothesize that syllable segmentation for this family can be formalized as a regular language, providing the mathematical foundation for a deterministic $O(N)$ pre-processing stage that enforces linguistic integrity before any statistical compression.
+
+We instantiate and formally specify the framework on Sinhala, which serves as a high-complexity proof-of-concept due to its orthography combining both implicit virama stacking and explicit ZWJ-mediated conjuncts (Yansaya and Rakaransaya). Success on this demanding case suggests that adaptation to the broader Abugida family is straightforward, with the same architecture adaptable through script-specific character-class mappings and minor conjunct-rule tweaks (see Section 8.5).
+
+\subsection{Character Classes}
+
+We define the following abstract classes based on orthographic and phonetic roles, then instantiate them for Sinhala using the Unicode block (U+0D80--U+0DFF):
+
+\begin{table}[h!]
+\caption{Sinhala Unicode Character Classes}
+\label{tab:char_classes}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Class & Unicode Range & Description \\
+\midrule
+\textbf{C} (consonant) & U+0D9A--U+0DC6 & Base consonants (vyanjana) \\
+\textbf{V} (vowel) & U+0D85--U+0D96 & Independent vowels (svara) \\
+\textbf{P} (pili) & U+0DCF--U+0DDF, U+0DF2--U+0DF3 & Dependent vowel signs (pili) \\
+\textbf{H} (HAL) & U+0DCA & Virama (vowel suppressor / al-lakuna) \\
+\textbf{Z} (ZWJ) & U+200D & Zero-Width Joiner (conjunct connector) \\
+\textbf{M} (post-modifier) & U+0D82, U+0D83 & Anusvara and visarga (nasalization and aspiration markers) \\
+\textbf{O} (other) & All else & Non-Sinhala passthrough \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\subsection{Formal Definition}
+
+A valid Sinhala syllable is a string over the alphabet $\Sigma = \textbf{C} \cup \textbf{V} \cup \textbf{P} \cup \textbf{H} \cup \textbf{Z} \cup \textbf{M}$ matching the regular expression
+\[
+S = C (H Z? C)^* (P \mid H)? M? \;\;\mid\;\; V M? \,.
+\]
+This definition captures all linguistically valid forms, including independent vowels, simple and complex conjuncts (implicit and explicit), terminal virama, and optional post-modifiers. To ensure robust handling of noisy or invalid Unicode text, the tokenizer also acts as a total function by emitting orphan modifiers ($P \mid H \mid M$) and non-Sinhala characters ($O$) as single-character passthrough tokens, separate from the primary linguistic syllable definition. The grammar encodes the following invariants:
+\begin{enumerate}
+\item The virama (H) appears only as a connector inside conjuncts or as a terminal modifier; it never begins a linguistically valid syllable (the implementation safely handles stray viramas as orphan passthrough tokens).
+\item The Zero-Width Joiner (Z) appears exclusively in the pattern H Z C inside a conjunct.
+\item Dependent vowels (P) appear only immediately after a complete cluster.
+\end{enumerate}
+
+\subsection{The Language is Regular}
+
+\begin{proposition}
+The set of valid Sinhala syllables is a regular language.
+\end{proposition}
+
+\textbf{Proof.} Because $S$ is a regular expression and regular expressions define regular languages, the proposition follows immediately. The following table defines a deterministic finite automaton that recognizes $L(S)$ and directly guides the implementation of LinguisTrie (greedy longest-match semantics, single left-to-right pass with bounded lookahead).
+
+\begin{table}[h!]
+\caption{DFA Transition Table for Sinhala Syllable Recognition}
+\label{tab:dfa}
+\begin{center}
+\begin{tabular}{c|ccccccc}
+\toprule
+State & C & V & H & P & Z & M & O \\
+\midrule
+START        & IN\_CLUSTER & IN\_VOWEL & ORPHAN & ORPHAN & ORPHAN & ORPHAN & PASSTHROUGH \\
+IN\_CLUSTER   & --          & --        & HAL\_SEEN & PILI\_SEEN & --    & ACCEPT & -- \\
+HAL\_SEEN    & IN\_CLUSTER & --        & --        & --        & ZWJ\_SEEN & ACCEPT & -- \\
+ZWJ\_SEEN    & IN\_CLUSTER & --        & --        & --        & --        & --     & -- \\
+PILI\_SEEN   & --          & --        & --        & --        & --        & ACCEPT & -- \\
+IN\_VOWEL    & --          & --        & --        & --        & --        & ACCEPT & -- \\
+ORPHAN       & --          & --        & --        & --        & --        & --     & -- \\
+PASSTHROUGH  & --          & --        & --        & --        & --        & --     & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+Accepting states are IN\_CLUSTER, IN\_VOWEL, HAL\_SEEN, ZWJ\_SEEN, PILI\_SEEN, ACCEPT, ORPHAN, and PASSTHROUGH. Segmentation therefore requires a single left-to-right pass with constant-time transitions, strictly monotonic pointer advance, no backtracking, and bounded lookahead. This yields $O(N)$ time and $O(1)$ auxiliary space.
+
+LinguisTrie is the direct, streaming implementation of this automaton. We hypothesize that analogous regular grammars can be defined for many major Abugida scripts. The same deterministic $O(N)$ architecture suggests that adaptation through script-specific character classes and conjunct rules is straightforward.
