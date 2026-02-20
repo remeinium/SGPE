@@ -6,7 +6,7 @@ The architectural bet pays off most visibly at the conjunct level. Complex ortho
 
 While the vocabulary pruning strategy results in a very low UNK rate (0.46\%), extremely rare compounds still surface as [UNK]. This is expected and preferable to polluting the vocabulary with meaningless sub-character fragments.
 
-Inference is highly efficient: SGPE processes a typical sentence in approximately 10 ms on standard CPU hardware (measured on a 6-core WSL environment), remaining competitive with local frontier implementations and orders of magnitude faster than API round-trips.
+Inference is highly efficient: SGPE processes a typical sentence in approximately 10 ms on commodity CPU hardware (a 6-core machine running WSL2), remaining competitive with local frontier implementations and orders of magnitude faster than API round-trips.
 
 \textbf{Limitations.} The present work focuses on Sinhala as a high-complexity proof-of-concept for Abugida scripts. Extending the regular-language formalization and LinguisTrie state machine to Tamil, Devanagari, Myanmar, Khmer and other scripts is the immediate next step. Longer-term, we plan to measure end-to-end downstream gains when pre-training or fine-tuning large language models directly with SGPE tokenizers.
 

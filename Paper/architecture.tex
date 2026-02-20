@@ -32,9 +32,9 @@ This guarantee is empirically validated on an exhaustive battery of 1,703 conjun
 Layer 2 applies a constrained BPE procedure to the syllable stream produced by Layer 1. Three modifications distinguish GPE from standard subword algorithms:
 
 \begin{enumerate}
-\item \textbf{Syllabic initialization.} The base vocabulary is initialized with the atomic linguistic syllables and preserving passthrough characters emitted by LinguisTrie. For the target Abugida script, we inherently avoid blindly fracturing text into individual bytes or codepoints.
-\item \textbf{Boundary-aware scoping.} Merges are performed only within word spans delimited by whitespace or non-Sinhala passthrough tokens, preventing cross-word tokens that would violate morphological boundaries.
-\item \textbf{Frequency pruning.} Syllables whose corpus frequency falls below a threshold $\theta$ are replaced by an \texttt{[UNK]} sentinel prior to the merge loop, eliminating the influence of rare or noisy fragments on merge priority.
+\item \textbf{Syllabic initialization.} The base vocabulary is initialized with atomic syllables and passthrough characters emitted by LinguisTrie. By construction, this ensures that the tokenizer never fractures text into sub-character bytes or meaningless codepoint fragments.
+\item \textbf{Boundary-aware scoping.} Merges are performed exclusively within word spans delimited by whitespace or non-Sinhala passthrough tokens. This prevents the formation of cross-word tokens that would otherwise violate morphological boundaries.
+\item \textbf{Frequency pruning.} Syllables with a corpus frequency below a threshold $\theta$ are replaced by an \texttt{[UNK]} sentinel prior to the merge procedure. This eliminates the influence of rare or noisy linguistic fragments on statistical merge priority.
 \end{enumerate}
 
 Unlike standard BPE and Unigram LM, which operate directly on codepoints (or bytes) and therefore routinely produce conjunct/ZWJ fragmentation, orphan pili/HAL tokens, and cross-word merges, GPE’s constraints rule out these pathologies by construction: every base unit is already linguistically valid, and every merge preserves that validity.

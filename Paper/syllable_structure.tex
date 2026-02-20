@@ -1,6 +1,6 @@
 Brahmic (Abugida) scripts share a common structural invariant: consonants carry inherent vowels that are modified or suppressed through combining marks, with complex conjuncts formed through virama-like characters and optional Zero-Width Joiners. We hypothesize that syllable segmentation for this family can be formalized as a regular language, providing the mathematical foundation for a deterministic $O(N)$ pre-processing stage that enforces linguistic integrity before any statistical compression.
 
-We instantiate and formally specify the framework on Sinhala, which serves as a high-complexity proof-of-concept due to its orthography combining both implicit virama stacking and explicit ZWJ-mediated conjuncts (Yansaya and Rakaransaya). Success on this demanding case suggests that adaptation to the broader Abugida family is straightforward, with the same architecture adaptable through script-specific character-class mappings and minor conjunct-rule tweaks (see Section 8.5).
+We instantiate and formally specify the framework on Sinhala, which serves as a high-complexity proof-of-concept due to its orthography combining both implicit virama stacking and explicit ZWJ-mediated conjuncts (Yansaya and Rakaransaya). Success on this demanding case suggests that adaptation to the broader Abugida family is straightforward, with the same architecture adaptable through script-specific character-class mappings and minor conjunct-rule tweaks.
 
 \subsection{Character Classes}
 
@@ -10,6 +10,7 @@ We define the following abstract classes based on orthographic and phonetic role
 \caption{Sinhala Unicode Character Classes}
 \label{tab:char_classes}
 \begin{center}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lll}
 \toprule
 Class & Unicode Range & Description \\
@@ -22,7 +23,7 @@ Class & Unicode Range & Description \\
 \textbf{M} (post-modifier) & U+0D82, U+0D83 & Anusvara and visarga (nasalization and aspiration markers) \\
 \textbf{O} (other) & All else & Non-Sinhala passthrough \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{center}
 \end{table}
 
@@ -51,6 +52,7 @@ The set of valid Sinhala syllables is a regular language.
 \caption{DFA Transition Table for Sinhala Syllable Recognition}
 \label{tab:dfa}
 \begin{center}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{c|ccccccc}
 \toprule
 State & C & V & H & P & Z & M & O \\
@@ -64,7 +66,7 @@ IN\_VOWEL    & --          & --        & --        & --        & --        & ACC
 ORPHAN       & --          & --        & --        & --        & --        & --     & -- \\
 PASSTHROUGH  & --          & --        & --        & --        & --        & --     & -- \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{center}
 \end{table}
 
