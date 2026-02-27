@@ -1,0 +1,165 @@
+{
+    "_comment": "SGPE Language Schema — Sinhala (Unicode block U+0D80-U+0DFF)",
+    "language": "sinhala",
+    "script_family": "abugida",
+    "grammar_notation": "C (H Z? C)* (P | H)? M? | V M?",
+    "char_classes": {
+        "C": {
+            "_description": "Consonants (vyanjana) U+0D9A–U+0DC6",
+            "ranges": [
+                [
+                    "0D9A",
+                    "0DC6"
+                ]
+            ]
+        },
+        "V": {
+            "_description": "Independent vowels (svara) U+0D85–U+0D96",
+            "codepoints": [
+                "0D85",
+                "0D86",
+                "0D87",
+                "0D88",
+                "0D89",
+                "0D8A",
+                "0D8B",
+                "0D8C",
+                "0D8D",
+                "0D8E",
+                "0D8F",
+                "0D90",
+                "0D91",
+                "0D92",
+                "0D93",
+                "0D94",
+                "0D95",
+                "0D96"
+            ]
+        },
+        "P": {
+            "_description": "Dependent vowel signs (pili / matra)",
+            "codepoints": [
+                "0DCF",
+                "0DD0",
+                "0DD1",
+                "0DD2",
+                "0DD3",
+                "0DD4",
+                "0DD5",
+                "0DD6",
+                "0DD7",
+                "0DD8",
+                "0DD9",
+                "0DDA",
+                "0DDB",
+                "0DDC",
+                "0DDD",
+                "0DDE",
+                "0DDF",
+                "0DF2",
+                "0DF3"
+            ]
+        },
+        "H": {
+            "_description": "HAL / virama / al-lakuna U+0DCA",
+            "codepoints": [
+                "0DCA"
+            ]
+        },
+        "Z": {
+            "_description": "Zero-Width Joiner U+200D (conjunct connector)",
+            "codepoints": [
+                "200D"
+            ]
+        },
+        "M": {
+            "_description": "Post-consonant modifiers: anusvara U+0D82, visarga U+0D83",
+            "codepoints": [
+                "0D82",
+                "0D83"
+            ]
+        }
+    },
+    "dfa": {
+        "start": "START",
+        "accept_states": [
+            "IN_CLUSTER",
+            "IN_VOWEL",
+            "HAL_SEEN",
+            "ZWJ_SEEN",
+            "PILI_SEEN",
+            "ACCEPT"
+        ],
+        "emit_states": [
+            "ORPHAN",
+            "PASSTHROUGH"
+        ],
+        "transitions": {
+            "START": {
+                "C": "IN_CLUSTER",
+                "V": "IN_VOWEL",
+                "H": "ORPHAN",
+                "P": "ORPHAN",
+                "Z": "ORPHAN",
+                "M": "ORPHAN",
+                "O": "PASSTHROUGH"
+            },
+            "IN_CLUSTER": {
+                "H": "HAL_SEEN",
+                "P": "PILI_SEEN",
+                "M": "ACCEPT",
+                "C": null,
+                "V": null,
+                "Z": null,
+                "O": null
+            },
+            "HAL_SEEN": {
+                "C": "IN_CLUSTER",
+                "Z": "ZWJ_SEEN",
+                "M": "ACCEPT",
+                "V": null,
+                "H": null,
+                "P": null,
+                "O": null
+            },
+            "ZWJ_SEEN": {
+                "C": "IN_CLUSTER",
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "M": null,
+                "O": null
+            },
+            "PILI_SEEN": {
+                "M": "ACCEPT",
+                "P": "ORPHAN",
+                "C": null,
+                "V": null,
+                "H": null,
+                "Z": null,
+                "O": null
+            },
+            "IN_VOWEL": {
+                "M": "ACCEPT",
+                "C": null,
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "O": null
+            },
+            "ACCEPT": {
+                "C": null,
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "M": null,
+                "O": null
+            },
+            "ORPHAN": {},
+            "PASSTHROUGH": {}
+        }
+    }
+}

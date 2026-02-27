@@ -1,0 +1,270 @@
+{
+    "_comment": "SGPE Language Schema — Devanagari (Unicode block U+0900-U+097F) — Hindi / Sanskrit",
+    "language": "devanagari",
+    "script_family": "abugida",
+    "grammar_notation": "C N? (H Z? C N?)* (P | H)? M* | V M*",
+    "char_classes": {
+        "C": {
+            "_description": "Consonants U+0915–U+0939, U+0958–U+095F (NFC precomposed with Nukta), U+0978–U+097F (extended)",
+            "ranges": [
+                [
+                    "0915",
+                    "0939"
+                ],
+                [
+                    "0958",
+                    "095F"
+                ],
+                [
+                    "0978",
+                    "097F"
+                ]
+            ],
+            "_note": "U+0900-range above excludes vowels/modifiers. U+0958-095F are the standard nukta-precomposed forms (qa, khha, etc) — treated as plain consonants here because they carry Nukta semantically baked in."
+        },
+        "V": {
+            "_description": "Independent vowels",
+            "codepoints": [
+                "0904",
+                "0905",
+                "0906",
+                "0907",
+                "0908",
+                "0909",
+                "090A",
+                "090B",
+                "090C",
+                "090D",
+                "090E",
+                "090F",
+                "0910",
+                "0911",
+                "0912",
+                "0913",
+                "0914",
+                "0960",
+                "0961",
+                "0972",
+                "0973",
+                "0974",
+                "0975",
+                "0976",
+                "0977"
+            ]
+        },
+        "P": {
+            "_description": "Dependent vowel signs (matras / pili) — never appear as syllable head",
+            "codepoints": [
+                "093E",
+                "093F",
+                "0940",
+                "0941",
+                "0942",
+                "0943",
+                "0944",
+                "0945",
+                "0946",
+                "0947",
+                "0948",
+                "0949",
+                "094A",
+                "094B",
+                "094C",
+                "094E",
+                "094F",
+                "0955",
+                "0956",
+                "0957",
+                "0962",
+                "0963"
+            ]
+        },
+        "H": {
+            "_description": "Virama / Halant U+094D — vowel suppressor / conjunct connector",
+            "codepoints": [
+                "094D"
+            ]
+        },
+        "Z": {
+            "_description": "ZWJ U+200D and ZWNJ U+200C — explicit conjunct control",
+            "codepoints": [
+                "200D",
+                "200C"
+            ]
+        },
+        "N": {
+            "_description": "Nukta U+093C — diacritic dot modifying consonant phoneme (ज→ज़, क→क़ etc.)",
+            "codepoints": [
+                "093C"
+            ]
+        },
+        "M": {
+            "_description": "Post-cluster modifiers: anusvara, chandrabindu, visarga, avagraha, and Vedic accents",
+            "codepoints": [
+                "0900",
+                "0901",
+                "0902",
+                "0903",
+                "093D",
+                "0950",
+                "0951",
+                "0952",
+                "0953",
+                "0954",
+                "1CD0",
+                "1CD3",
+                "1CDA",
+                "1CDB",
+                "1CDC",
+                "1CDD",
+                "1CDE",
+                "1CDF",
+                "1CE1",
+                "1CE9",
+                "1CEA",
+                "1CEB",
+                "1CEC",
+                "1CED",
+                "1CEE",
+                "1CEF",
+                "1CF0",
+                "1CF1",
+                "1CF2",
+                "1CF3",
+                "1CF4",
+                "A8E0",
+                "A8E1",
+                "A8E2",
+                "A8E3",
+                "A8E4",
+                "A8E5",
+                "A8E6",
+                "A8E7",
+                "A8E8",
+                "A8E9",
+                "A8EA",
+                "A8EB",
+                "A8EC",
+                "A8ED",
+                "A8EE",
+                "A8EF",
+                "A8F0",
+                "A8F1"
+            ],
+            "_note": "0950 = OM sign. 093D = avagraha. 1CD0+ and A8E0+ are Vedic extension block accents used in Sanskrit."
+        }
+    },
+    "dfa": {
+        "start": "START",
+        "accept_states": [
+            "IN_CLUSTER",
+            "NUKTA_SEEN",
+            "IN_VOWEL",
+            "HAL_SEEN",
+            "ZWJ_SEEN",
+            "PILI_SEEN",
+            "ACCEPT",
+            "IN_CLUSTER_M",
+            "IN_VOWEL_M"
+        ],
+        "emit_states": [
+            "ORPHAN",
+            "PASSTHROUGH"
+        ],
+        "transitions": {
+            "START": {
+                "C": "IN_CLUSTER",
+                "V": "IN_VOWEL",
+                "H": "ORPHAN",
+                "P": "ORPHAN",
+                "Z": "ORPHAN",
+                "N": "ORPHAN",
+                "M": "ORPHAN",
+                "O": "PASSTHROUGH"
+            },
+            "IN_CLUSTER": {
+                "N": "NUKTA_SEEN",
+                "H": "HAL_SEEN",
+                "P": "PILI_SEEN",
+                "M": "IN_CLUSTER_M",
+                "C": null,
+                "V": null,
+                "Z": null,
+                "O": null
+            },
+            "NUKTA_SEEN": {
+                "H": "HAL_SEEN",
+                "P": "PILI_SEEN",
+                "M": "IN_CLUSTER_M",
+                "C": null,
+                "V": null,
+                "N": null,
+                "Z": null,
+                "O": null
+            },
+            "HAL_SEEN": {
+                "C": "IN_CLUSTER",
+                "Z": "ZWJ_SEEN",
+                "M": "ACCEPT",
+                "V": null,
+                "H": null,
+                "P": null,
+                "N": null,
+                "O": null
+            },
+            "ZWJ_SEEN": {
+                "C": "IN_CLUSTER",
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "N": null,
+                "M": null,
+                "O": null
+            },
+            "PILI_SEEN": {
+                "M": "IN_CLUSTER_M",
+                "P": "ORPHAN",
+                "C": null,
+                "V": null,
+                "H": null,
+                "Z": null,
+                "N": null,
+                "O": null
+            },
+            "IN_CLUSTER_M": {
+                "M": "IN_CLUSTER_M",
+                "C": null,
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "N": null,
+                "O": null
+            },
+            "IN_VOWEL": {
+                "M": "IN_VOWEL_M",
+                "C": null,
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "N": null,
+                "O": null
+            },
+            "IN_VOWEL_M": {
+                "M": "IN_VOWEL_M",
+                "C": null,
+                "V": null,
+                "H": null,
+                "P": null,
+                "Z": null,
+                "N": null,
+                "O": null
+            },
+            "ACCEPT": {},
+            "ORPHAN": {},
+            "PASSTHROUGH": {}
+        }
+    }
+}

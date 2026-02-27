@@ -1,0 +1,8 @@
+{
+  "tiktoken_model": "o200k_base",
+  "tiktoken_vocab_size": 200019,
+  "sgpe_vocab_size": 128000,
+  "sgpe_id_offset": 200019,
+  "script_mode": "mixed",
+  "sgpe_vocab_path": "vocab.json"
+}

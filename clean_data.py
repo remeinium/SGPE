@@ -4,64 +4,70 @@ import re
 from tqdm import tqdm
 import os
 
-# Modifiers: HAL, Pili, and Anusvara/Visarga
-MODIFIERS = r'\u0DCA\u0DCF-\u0DDF\u0DF2\u0DF3\u0D82\u0D83'
-# Base characters: Consonants and Vowels
-SINHALA_BASE = r'[\u0D85-\u0D96\u0D9A-\u0DC6]'
+SINHALA_BASE = r'\u0D85-\u0D96\u0D9A-\u0DC6'
+SINHALA_MODIFIERS = r'\u0DCA\u0DCF-\u0DDF\u0DF2\u0DF3\u0D82\u0D83'
+
+DEV_BASE = r'\u0904-\u0939\u0958-\u095F\u0960-\u0961\u0972-\u097F'
+DEV_MODIFIERS = r'\u0900-\u0903\u093A-\u094F\u0951-\u0957\u0962-\u0963'
+DEV_HALANT = r'\u094D'
+DEV_NUKTA = r'\u093C'
 
 def clean_orphans(text):
-    # 1. Standardize representation
     text = unicodedata.normalize('NFC', text)
-    
-    # 2. Iteratively remove orphans until no more changes 
-    # (Handles chained orphans like [space][HAL][ZWJ])
     while True:
         orig = text
-        # Remove ZWJs that are not following a HAL
-        text = re.sub(r'(?<!\u0DCA)\u200D+', '', text)
-        # Remove HAL/Pili/Post-modifiers that are not preceded by a base or another modifier
-        text = re.sub(f'(?<!{SINHALA_BASE}|\u0DCA)[{MODIFIERS}]+', '', text)
+        # ZWJ cleanup - keep only if preceded by Sinhala Al-pillam or Dev Halant
+        text = re.sub(r'(?<!\u0DCA)(?<!\u094D)\u200D+', '', text)
+        
+        # Sinhala orphaned modifiers
+        text = re.sub(f'(?<![{SINHALA_BASE}\u0DCA])[{SINHALA_MODIFIERS}]+', '', text)
+        
+        # Devanagari orphaned modifiers (can follow Base, Halant, or Nukta)
+        text = re.sub(f'(?<![{DEV_BASE}{DEV_HALANT}{DEV_NUKTA}])[{DEV_MODIFIERS}{DEV_HALANT}{DEV_NUKTA}]+', '', text)
+        
         if text == orig:
             break
-            
-    # 3. Remove trailing HAL/ZWJ at the end of a word
-    text = re.sub(r'\u0DCA\u200D?(?=\s|$)', '', text)
     
     return text
 
 def main():
-    files = [
-        ('data/train.jsonl', 'data/train_clean.jsonl'),
-        ('data/test.jsonl', 'data/test_clean.jsonl')
-    ]
+    input_path = 'dataset/mixed_dataset_30m.jsonl'
+    train_output = 'dataset/mixed_train.jsonl'
+    test_output = 'dataset/mixed_test.jsonl'
+
+    if not os.path.exists(input_path):
+        print(f"Skipping {input_path} (not found)")
+        return
+
+    print(f"Processing {input_path} -> 95% train, 5% test")
     
-    for input_path, output_path in files:
-        if not os.path.exists(input_path):
-            print(f"Skipping {input_path} (not found)")
-            continue
+    total_lines = 30000000
+    train_target = int(total_lines * 0.95)
+    
+    train_count = 0
+    test_count = 0
 
-        print(f"Processing {input_path} -> {output_path}...")
+    with open(input_path, 'r', encoding='utf-8') as f_in, \
+         open(train_output, 'w', encoding='utf-8') as f_train, \
+         open(test_output, 'w', encoding='utf-8') as f_test:
         
-        # Count lines
-        with open(input_path, 'r', encoding='utf-8') as f:
-            total = sum(1 for _ in f)
+        for i, line in enumerate(tqdm(f_in, total=total_lines, unit=' lines', desc='Cleaning & Splitting')):
+            try:
+                obj = json.loads(line)
+                cleaned = clean_orphans(obj['text'])
+                if cleaned.strip():
+                    obj['text'] = cleaned
+                    out_line = json.dumps(obj, ensure_ascii=False) + '\n'
+                    if i < train_target:
+                        f_train.write(out_line)
+                        train_count += 1
+                    else:
+                        f_test.write(out_line)
+                        test_count += 1
+            except Exception:
+                continue
 
-        count = 0
-        with open(input_path, 'r', encoding='utf-8') as f_in:
-            with open(output_path, 'w', encoding='utf-8') as f_out:
-                for line in tqdm(f_in, total=total, unit=' lines', desc=os.path.basename(input_path)):
-                    try:
-                        obj = json.loads(line)
-                        cleaned = clean_orphans(obj['text'])
-                        if cleaned.strip():
-                            obj['text'] = cleaned
-                            f_out.write(json.dumps(obj, ensure_ascii=False) + '\n')
-                            count += 1
-                    except Exception:
-                        continue
-        print(f"  Saved {count:,} lines to {output_path}")
-
-
+    print(f"\nDone! Saved {train_count:,} lines to {train_output}, {test_count:,} lines to {test_output}")
 
 if __name__ == "__main__":
     main()
