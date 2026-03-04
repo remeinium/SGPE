@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WWHO Architecture Pipeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Sora:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #09090c;
+    --surface: #0f1015;
+    --border: #1c1f2e;
+    --border2: #252840;
+    --text: #c8d0e0;
+    --muted: #505870;
+    --faint: #2a2e40;
+
+    --la: #5b9cf6;   --la-bg: #080f22; --la-br: #142040;
+    --si: #f97060;   --si-bg: #1e0a06; --si-br: #4a1008;
+    --hi: #a78bfa;   --hi-bg: #100818; --hi-br: #281050;
+    --sg: #34d399;   --sg-bg: #041208; --sg-br: #083018;
+    --mt: #f5c842;   --mt-bg: #120e00; --mt-br: #342800;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;font-size:12.5px;padding:28px 20px 56px;min-width:1080px;}
+
+  .hdr{margin-bottom:24px;}
+  .hdr h1{font-size:16px;font-weight:700;color:#dde4f0;letter-spacing:-.2px;margin-bottom:6px;}
+  .hdr .sent{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8898b8;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:9px 13px;line-height:1.7;}
+  .hdr .sent strong{color:var(--text);}
+
+  .ph{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;margin:18px 0 8px;}
+  .ph::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .dn{text-align:center;color:var(--faint);font-size:18px;margin:2px 0;}
+
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:7px;padding:12px 14px;margin-bottom:4px;}
+  .card-title{font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;}
+
+  .chip{display:inline-flex;flex-direction:column;border-radius:4px;padding:4px 7px;font-family:'JetBrains Mono',monospace;font-size:12px;border:1px solid;line-height:1.3;}
+  .chip .lbl{font-size:8.5px;letter-spacing:.7px;text-transform:uppercase;font-family:'Sora',sans-serif;font-weight:600;opacity:.6;margin-bottom:2px;}
+  .chip .sub{font-size:8.5px;opacity:.4;margin-top:2px;}
+
+  .c-la{background:var(--la-bg);border-color:var(--la-br);color:var(--la);}
+  .c-si{background:var(--si-bg);border-color:var(--si-br);color:var(--si);}
+  .c-hi{background:var(--hi-bg);border-color:var(--hi-br);color:var(--hi);}
+
+  .row{display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start;}
+
+  .tracks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px;align-items:start;}
+  .track{background:var(--surface);border:1px solid var(--border2);border-radius:7px;padding:13px 14px;}
+  .track-title{font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  .track.st .track-title{color:var(--sg);}
+  .track.bt .track-title{color:var(--la);}
+
+  .wb{margin-bottom:9px;}
+  .wb-lbl{font-size:8.5px;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .syl-row{display:flex;flex-wrap:wrap;gap:3px;}
+
+  .sc{border-radius:3px;padding:3px 6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;border:1px solid;}
+  .sc.si{background:var(--si-bg);border-color:var(--si-br);color:var(--si);}
+  .sc.hi{background:var(--hi-bg);border-color:var(--hi-br);color:var(--hi);}
+  .sc.la{background:var(--la-bg);border-color:var(--la-br);color:var(--la);}
+
+  .mb{margin:5px 0 2px;padding:5px 9px;border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .mb.si-m{background:#060a04;border:1px dashed #0e2810;}
+  .mb.hi-m{background:#07050e;border:1px dashed #180a38;}
+  .mb .arr{color:var(--muted);font-size:10px;}
+  .mb .res{font-size:12px;font-weight:600;}
+  .mb .res.si{color:var(--si);}
+  .mb .res.hi{color:var(--hi);}
+  .mb.si-m .src{color:#2a5528;}
+  .mb.hi-m .src{color:#322060;}
+
+  .no-mg{font-size:9.5px;color:var(--muted);font-style:italic;margin-top:3px;font-family:'JetBrains Mono',monospace;}
+
+  .meta-grid{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+  .ms{border-radius:6px;padding:9px 11px;}
+  .ms-head{font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid;}
+  .ms.tik{background:var(--la-bg);border:1px solid var(--la-br);min-width:190px;}
+  .ms.tik .ms-head{color:var(--la);border-color:var(--la-br);}
+  .ms.sgpe{background:var(--sg-bg);border:1px solid var(--sg-br);flex:2;}
+  .ms.sgpe .ms-head{color:var(--sg);border-color:var(--sg-br);}
+
+  .id-chip{border-radius:3px;padding:3px 5px;font-family:'JetBrains Mono',monospace;font-size:10px;border:1px solid;display:inline-flex;flex-direction:column;align-items:center;gap:1px;}
+  .id-chip .t{font-size:11px;}
+  .id-chip .n{font-size:8px;opacity:.4;}
+  .id-chip.ti{background:var(--la-bg);border-color:var(--la-br);color:var(--la);}
+  .id-chip.is{background:var(--si-bg);border-color:var(--si-br);color:var(--si);}
+  .id-chip.ih{background:var(--hi-bg);border-color:var(--hi-br);color:var(--hi);}
+
+  .off-note{font-size:9.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:7px;padding-top:6px;border-top:1px solid var(--border);}
+
+  .out-box{background:#060b04;border:1px solid #0e2810;border-radius:7px;padding:13px 14px;}
+  .fc{border-radius:4px;padding:5px 7px;font-family:'JetBrains Mono',monospace;font-size:11px;border:1px solid;display:inline-flex;flex-direction:column;align-items:center;gap:2px;}
+  .fc .t{font-size:12px;}
+  .fc .n{font-size:8.5px;opacity:.38;}
+  .fc.fl{background:var(--la-bg);border-color:var(--la-br);color:var(--la);}
+  .fc.fs{background:var(--si-bg);border-color:var(--si-br);color:var(--si);}
+  .fc.fh{background:var(--hi-bg);border-color:var(--hi-br);color:var(--hi);}
+
+  .stats{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--border);}
+  .stat{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);}
+  .stat span{color:var(--text);font-weight:600;}
+
+  .gbox{margin-top:9px;padding:7px 10px;background:#04090a;border:1px solid #083018;border-radius:5px;font-size:9.5px;color:#1e5030;font-family:'JetBrains Mono',monospace;line-height:1.6;}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:14px;border-top:1px solid var(--border);}
+  .li{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);}
+  .ld{width:9px;height:9px;border-radius:2px;border:1px solid;}
+  .ld.la{background:var(--la-bg);border-color:var(--la);}
+  .ld.si{background:var(--si-bg);border-color:var(--si);}
+  .ld.hi{background:var(--hi-bg);border-color:var(--hi);}
+  .ld.sg{background:var(--sg-bg);border-color:var(--sg);}
+  .ld.mt{background:var(--mt-bg);border-color:var(--mt);}
+
+  .big-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;margin-bottom:2px;}
+  .big-sub{font-size:9.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>WWHO Architecture — Full Pipeline Trace</h1>
+  <div class="sent">
+    <strong>Input (205 chars):</strong> AGI (General කෘත්‍රිම बुद्धिमत्ता) Ultimate लक्ष्य එක සපුරා ගැනීමට නම්, to anyone from ඕනෑම භාෂාවකින් समान गुणवत्ता සහ depth of knowledge සහිතව respond කිරීමට හැකි වන පරිදි LLMs प्रशिक्षित කළ යුතුයි....!!!!
+  </div>
+</div>
+
+<!-- LAYER 1 -->
+<div class="ph">1 · Layer 1 — Router · "The Where" · O(N) scan · O(1) per character · 27 segments</div>
+<div class="card">
+  <div class="card-title" style="color:var(--la);">CodeSwitchSegmenter · Unicode Block Classification + Hard Script Boundaries</div>
+  <div class="row">
+    <div class="chip c-la"><span class="lbl">Latin #1</span>AGI (General<span class="sub">ls=False</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #1</span>කෘත්‍රිම<span class="sub">ls=True ← trailing space absorbed from Latin #1</span></div>
+    <div class="chip c-hi"><span class="lbl">Devanagari #1</span>बुद्धिमत्ता<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #2</span>) Ultimate<span class="sub">ls=False</span></div>
+    <div class="chip c-hi"><span class="lbl">Devanagari #2</span>लक्ष्य<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #2</span>එක<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #3</span>සපුරා<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #4</span>ගැනීමට<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #5</span>නම්<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #3</span>, to anyone from<span class="sub">ls=False</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #6</span>ඕනෑම<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #7</span>භාෂාවකින්<span class="sub">ls=True</span></div>
+    <div class="chip c-hi"><span class="lbl">Devanagari #3</span>समान<span class="sub">ls=True</span></div>
+    <div class="chip c-hi"><span class="lbl">Devanagari #4</span>गुणवत्ता<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #8</span>සහ<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #4</span>&nbsp;depth of knowledge<span class="sub">ls=False</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #9</span>සහිතව<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #5</span>&nbsp;respond<span class="sub">ls=False</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #10</span>කිරීමට<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #11</span>හැකි<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #12</span>වන<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #13</span>පරිදි<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #6</span>&nbsp;LLMs<span class="sub">ls=False</span></div>
+    <div class="chip c-hi"><span class="lbl">Devanagari #5</span>प्रशिक्षित<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #14</span>කළ<span class="sub">ls=True</span></div>
+    <div class="chip c-si"><span class="lbl">Sinhala #15</span>යුතුයි<span class="sub">ls=True</span></div>
+    <div class="chip c-la"><span class="lbl">Latin #7</span>....!!!!</span><span class="sub">ls=False</span></div>
+  </div>
+</div>
+
+<div class="dn">↓</div>
+
+<!-- TRACKS -->
+<div class="ph">2–3 · Layer 2: LinguisTrie "What" (DFA syllabification, O(N) time, O(K) space) + Layer 3: SGPE "How Often" (frequency-driven merge)</div>
+<div class="tracks">
+
+  <div class="track st">
+    <div class="track-title">SGPE Track — Indic Segments → LinguisTrie → SGPE Merges</div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #1 · sinhala.json · ls=True</div>
+      <div class="syl-row"><div class="sc si"> කෘ</div><div class="sc si">ත්‍රි</div><div class="sc si">ම</div></div>
+      <div class="no-mg">no merge — 3 tokens retained as base syllables</div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Devanagari #1 · devanagari.json · ls=True</div>
+      <div class="syl-row"><div class="sc hi"> बु</div><div class="sc hi">द्धि</div><div class="sc hi">म</div><div class="sc hi">त्ता</div></div>
+      <div class="mb hi-m"><span class="src"> बु + द्धि + म + त्ता</span><span class="arr">→</span><span class="res hi"> बुद्धिमत्ता</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Devanagari #2 · ls=True</div>
+      <div class="syl-row"><div class="sc hi"> ल</div><div class="sc hi">क्ष्य</div></div>
+      <div class="mb hi-m"><span class="src"> ल + क्ष्य</span><span class="arr">→</span><span class="res hi"> लक्ष्य</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #2 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> එ</div><div class="sc si">ක</div></div>
+      <div class="mb si-m"><span class="src"> එ + ක</span><span class="arr">→</span><span class="res si"> එක</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #3 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ස</div><div class="sc si">පු</div><div class="sc si">රා</div></div>
+      <div class="mb si-m"><span class="src"> ස + පු + රා</span><span class="arr">→</span><span class="res si"> සපුරා</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #4 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ගැ</div><div class="sc si">නී</div><div class="sc si">ම</div><div class="sc si">ට</div></div>
+      <div class="mb si-m"><span class="src"> ගැ + නී + ම + ට</span><span class="arr">→</span><span class="res si"> ගැනීමට</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #5 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> න</div><div class="sc si">ම්</div></div>
+      <div class="mb si-m"><span class="src"> න + ම්</span><span class="arr">→</span><span class="res si"> නම්</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #6 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ඕ</div><div class="sc si">නෑ</div><div class="sc si">ම</div></div>
+      <div class="mb si-m"><span class="src"> ඕ + නෑ + ම</span><span class="arr">→</span><span class="res si"> ඕනෑම</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #7 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> භා</div><div class="sc si">ෂා</div><div class="sc si">ව</div><div class="sc si">කි</div><div class="sc si">න්</div></div>
+      <div class="mb si-m"><span class="src"> භා + ෂා + ව + කි + න්</span><span class="arr">→</span><span class="res si"> භාෂාවකින්</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Devanagari #3 · ls=True</div>
+      <div class="syl-row"><div class="sc hi"> स</div><div class="sc hi">मा</div><div class="sc hi">न</div></div>
+      <div class="mb hi-m"><span class="src"> स + मा + न</span><span class="arr">→</span><span class="res hi"> समान</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Devanagari #4 · ls=True</div>
+      <div class="syl-row"><div class="sc hi"> गु</div><div class="sc hi">ण</div><div class="sc hi">व</div><div class="sc hi">त्ता</div></div>
+      <div class="mb hi-m"><span class="src"> गु + ण + व + त्ता</span><span class="arr">→</span><span class="res hi"> गुणवत्ता</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #8 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ස</div><div class="sc si">හ</div></div>
+      <div class="mb si-m"><span class="src"> ස + හ</span><span class="arr">→</span><span class="res si"> සහ</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #9 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ස</div><div class="sc si">හි</div><div class="sc si">ත</div><div class="sc si">ව</div></div>
+      <div class="mb si-m"><span class="src"> ස + හි + ත + ව</span><span class="arr">→</span><span class="res si"> සහිතව</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #10 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> කි</div><div class="sc si">රී</div><div class="sc si">ම</div><div class="sc si">ට</div></div>
+      <div class="mb si-m"><span class="src"> කි + රී + ම + ට</span><span class="arr">→</span><span class="res si"> කිරීමට</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #11 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> හැ</div><div class="sc si">කි</div></div>
+      <div class="mb si-m"><span class="src"> හැ + කි</span><span class="arr">→</span><span class="res si"> හැකි</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #12 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ව</div><div class="sc si">න</div></div>
+      <div class="mb si-m"><span class="src"> ව + න</span><span class="arr">→</span><span class="res si"> වන</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #13 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ප</div><div class="sc si">රි</div><div class="sc si">දි</div></div>
+      <div class="mb si-m"><span class="src"> ප + රි + දි</span><span class="arr">→</span><span class="res si"> පරිදි</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Devanagari #5 · ls=True</div>
+      <div class="syl-row"><div class="sc hi"> प्र</div><div class="sc hi">शि</div><div class="sc hi">क्षि</div><div class="sc hi">त</div></div>
+      <div class="mb hi-m"><span class="src"> प्र + शि + क्षि + त</span><span class="arr">→</span><span class="res hi"> प्रशिक्षित</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #14 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> ක</div><div class="sc si">ළ</div></div>
+      <div class="mb si-m"><span class="src"> ක + ළ</span><span class="arr">→</span><span class="res si"> කළ</span></div>
+    </div>
+
+    <div class="wb">
+      <div class="wb-lbl">Sinhala #15 · ls=True</div>
+      <div class="syl-row"><div class="sc si"> යු</div><div class="sc si">තු</div><div class="sc si">යි</div></div>
+      <div class="mb si-m"><span class="src"> යු + තු + යි</span><span class="arr">→</span><span class="res si"> යුතුයි</span></div>
+    </div>
+
+    <div class="gbox">ZERO-BREAKAGE GUARANTEE: every merge operand is a DFA-accepted syllable. No merge crosses a syllable boundary. Every emitted token is a sequence of whole syllables or a single pass-through character.</div>
+  </div>
+
+  <!-- BPE TRACK -->
+  <div class="track bt">
+    <div class="track-title">BPE Track — Latin Segments · tiktoken o200k_base</div>
+
+    <div class="wb"><div class="wb-lbl">Latin #1 · ls=False</div>
+      <div class="syl-row"><div class="sc la">AG</div><div class="sc la">I</div><div class="sc la"> (</div><div class="sc la">General</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #2 · ls=False</div>
+      <div class="syl-row"><div class="sc la">)</div><div class="sc la"> Ultimate</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #3 · ls=False</div>
+      <div class="syl-row"><div class="sc la">,</div><div class="sc la"> to</div><div class="sc la"> anyone</div><div class="sc la"> from</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #4 · ls=False</div>
+      <div class="syl-row"><div class="sc la"> depth</div><div class="sc la"> of</div><div class="sc la"> knowledge</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #5 · ls=False</div>
+      <div class="syl-row"><div class="sc la"> respond</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #6 · ls=False</div>
+      <div class="syl-row"><div class="sc la"> L</div><div class="sc la">LM</div><div class="sc la">s</div></div></div>
+
+    <div class="wb"><div class="wb-lbl">Latin #7 · ls=False</div>
+      <div class="syl-row"><div class="sc la">....</div><div class="sc la">!!!!</div></div></div>
+
+    <div style="margin-top:12px;padding:8px 10px;background:#060c18;border:1px solid #101e38;border-radius:5px;font-size:9.5px;color:#1e4070;font-family:'JetBrains Mono',monospace;line-height:1.7;">
+      Pre-trained vocabulary lookup. No re-training.<br>
+      IDs ∈ [0, 200019) · o200k_base vocab size = 200,019
+    </div>
+
+    <div style="margin-top:16px;padding:12px;background:#060e04;border:1px solid #0a2208;border-radius:6px;">
+      <div class="wb-lbl" style="margin-bottom:8px;">Token count comparison</div>
+      <div style="display:flex;gap:20px;align-items:flex-end;">
+        <div>
+          <div class="big-num" style="color:var(--la);">67</div>
+          <div class="big-sub">o200k_base alone</div>
+        </div>
+        <div style="font-size:20px;color:var(--faint);padding-bottom:4px;">→</div>
+        <div>
+          <div class="big-num" style="color:var(--sg);">41</div>
+          <div class="big-sub">WWHO total</div>
+        </div>
+        <div>
+          <div class="big-num" style="color:var(--mt);font-size:18px;">↓38.8%</div>
+          <div class="big-sub">reduction</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:9.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;line-height:1.7;">
+        Indic syllables before SGPE merge: 61<br>
+        Indic tokens after SGPE merge: 22<br>
+        Indic compression: 61 → 22 syllable-tokens
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dn">↓</div>
+
+<!-- META VOCAB -->
+<div class="ph">4 · Unified Meta-Vocabulary · No ID Collision · sgpe_id = raw_id + 200,019</div>
+<div class="card" style="border-color:var(--mt-br);">
+  <div class="card-title" style="color:var(--mt);">MetaVocab · total_vocab_size = 200,019 + |SGPE_vocab|</div>
+  <div class="meta-grid">
+    <div class="ms tik">
+      <div class="ms-head">tiktoken · [0, 200019)</div>
+      <div class="row" style="gap:3px;">
+        <div class="id-chip ti"><span class="t">AG</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">I</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> (</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">General</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">)</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> Ultimate</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">,</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> to</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> anyone</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> from</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> depth</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> of</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> knowledge</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> respond</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t"> L</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">LM</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">s</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">....</span><span class="n">tik id</span></div>
+        <div class="id-chip ti"><span class="t">!!!!</span><span class="n">tik id</span></div>
+      </div>
+    </div>
+
+    <div class="ms sgpe">
+      <div class="ms-head">SGPE · [200019, 200019 + |SGPE_vocab|)</div>
+      <div class="row" style="gap:3px;">
+        <div class="id-chip is"><span class="t"> කෘ</span><span class="n">200019+rₐ</span></div>
+        <div class="id-chip is"><span class="t">ත්‍රි</span><span class="n">200019+r_b</span></div>
+        <div class="id-chip is"><span class="t">ම</span><span class="n">200019+r_c</span></div>
+        <div class="id-chip ih"><span class="t"> बुद्धिमत्ता</span><span class="n">200019+r₁</span></div>
+        <div class="id-chip ih"><span class="t"> लक्ष्य</span><span class="n">200019+r₂</span></div>
+        <div class="id-chip is"><span class="t"> එක</span><span class="n">200019+r₃</span></div>
+        <div class="id-chip is"><span class="t"> සපුරා</span><span class="n">200019+r₄</span></div>
+        <div class="id-chip is"><span class="t"> ගැනීමට</span><span class="n">200019+r₅</span></div>
+        <div class="id-chip is"><span class="t"> නම්</span><span class="n">200019+r₆</span></div>
+        <div class="id-chip is"><span class="t"> ඕනෑම</span><span class="n">200019+r₇</span></div>
+        <div class="id-chip is"><span class="t"> භාෂාවකින්</span><span class="n">200019+r₈</span></div>
+        <div class="id-chip ih"><span class="t"> समान</span><span class="n">200019+r₉</span></div>
+        <div class="id-chip ih"><span class="t"> गुणवत्ता</span><span class="n">200019+r₁₀</span></div>
+        <div class="id-chip is"><span class="t"> සහ</span><span class="n">200019+r₁₁</span></div>
+        <div class="id-chip is"><span class="t"> සහිතව</span><span class="n">200019+r₁₂</span></div>
+        <div class="id-chip is"><span class="t"> කිරීමට</span><span class="n">200019+r₁₃</span></div>
+        <div class="id-chip is"><span class="t"> හැකි</span><span class="n">200019+r₁₄</span></div>
+        <div class="id-chip is"><span class="t"> වන</span><span class="n">200019+r₁₅</span></div>
+        <div class="id-chip is"><span class="t"> පරිදි</span><span class="n">200019+r₁₆</span></div>
+        <div class="id-chip ih"><span class="t"> प्रशिक्षित</span><span class="n">200019+r₁₇</span></div>
+        <div class="id-chip is"><span class="t"> කළ</span><span class="n">200019+r₁₈</span></div>
+        <div class="id-chip is"><span class="t"> යුතුයි</span><span class="n">200019+r₁₉</span></div>
+      </div>
+      <div class="off-note">r-values = raw SGPE vocab IDs assigned by corpus frequency during training · offset = 200,019</div>
+    </div>
+  </div>
+</div>
+
+<div class="dn">↓</div>
+
+<!-- OUTPUT -->
+<div class="ph">5 · Output — 41-token Integer ID Sequence → LLM Embedding Layer</div>
+<div class="out-box">
+  <div class="card-title" style="color:var(--sg);margin-bottom:10px;">Final token sequence · original text order preserved</div>
+  <div class="row" style="gap:4px;">
+    <div class="fc fl"><span class="t">AG</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t">I</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> (</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t">General</span><span class="n">tik</span></div>
+    <div class="fc fs"><span class="t"> කෘ</span><span class="n">200019+rₐ</span></div>
+    <div class="fc fs"><span class="t">ත්‍රි</span><span class="n">200019+r_b</span></div>
+    <div class="fc fs"><span class="t">ම</span><span class="n">200019+r_c</span></div>
+    <div class="fc fh"><span class="t"> बुद्धिमत्ता</span><span class="n">200019+r₁</span></div>
+    <div class="fc fl"><span class="t">)</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> Ultimate</span><span class="n">tik</span></div>
+    <div class="fc fh"><span class="t"> लक्ष्य</span><span class="n">200019+r₂</span></div>
+    <div class="fc fs"><span class="t"> එක</span><span class="n">200019+r₃</span></div>
+    <div class="fc fs"><span class="t"> සපුරා</span><span class="n">200019+r₄</span></div>
+    <div class="fc fs"><span class="t"> ගැනීමට</span><span class="n">200019+r₅</span></div>
+    <div class="fc fs"><span class="t"> නම්</span><span class="n">200019+r₆</span></div>
+    <div class="fc fl"><span class="t">,</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> to</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> anyone</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> from</span><span class="n">tik</span></div>
+    <div class="fc fs"><span class="t"> ඕනෑම</span><span class="n">200019+r₇</span></div>
+    <div class="fc fs"><span class="t"> භාෂාවකින්</span><span class="n">200019+r₈</span></div>
+    <div class="fc fh"><span class="t"> समान</span><span class="n">200019+r₉</span></div>
+    <div class="fc fh"><span class="t"> गुणवत्ता</span><span class="n">200019+r₁₀</span></div>
+    <div class="fc fs"><span class="t"> සහ</span><span class="n">200019+r₁₁</span></div>
+    <div class="fc fl"><span class="t"> depth</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> of</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t"> knowledge</span><span class="n">tik</span></div>
+    <div class="fc fs"><span class="t"> සහිතව</span><span class="n">200019+r₁₂</span></div>
+    <div class="fc fl"><span class="t"> respond</span><span class="n">tik</span></div>
+    <div class="fc fs"><span class="t"> කිරීමට</span><span class="n">200019+r₁₃</span></div>
+    <div class="fc fs"><span class="t"> හැකි</span><span class="n">200019+r₁₄</span></div>
+    <div class="fc fs"><span class="t"> වන</span><span class="n">200019+r₁₅</span></div>
+    <div class="fc fs"><span class="t"> පරිදි</span><span class="n">200019+r₁₆</span></div>
+    <div class="fc fl"><span class="t"> L</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t">LM</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t">s</span><span class="n">tik</span></div>
+    <div class="fc fh"><span class="t"> प्रशिक्षित</span><span class="n">200019+r₁₇</span></div>
+    <div class="fc fs"><span class="t"> කළ</span><span class="n">200019+r₁₈</span></div>
+    <div class="fc fs"><span class="t"> යුතුයි</span><span class="n">200019+r₁₉</span></div>
+    <div class="fc fl"><span class="t">....</span><span class="n">tik</span></div>
+    <div class="fc fl"><span class="t">!!!!</span><span class="n">tik</span></div>
+  </div>
+  <div class="stats">
+    <div class="stat">WWHO total: <span>41</span></div>
+    <div class="stat">o200k_base alone: <span>67</span></div>
+    <div class="stat">Reduction: <span>38.8%</span></div>
+    <div class="stat">Latin (tiktoken): <span>19</span></div>
+    <div class="stat">Sinhala (SGPE): <span>17</span></div>
+    <div class="stat">Devanagari (SGPE): <span>5</span></div>
+    <div class="stat">Indic syllables → tokens: <span>61 → 22</span></div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="li"><div class="ld la"></div>Latin / BPE (tiktoken)</div>
+  <div class="li"><div class="ld si"></div>Sinhala (SGPE)</div>
+  <div class="li"><div class="ld hi"></div>Devanagari (SGPE)</div>
+  <div class="li"><div class="ld sg"></div>SGPE merge result</div>
+  <div class="li"><div class="ld mt"></div>Unified Meta-Vocab</div>
+  <div style="margin-left:auto;font-size:9.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;">tiktoken IDs illustrative · SGPE r-values are corpus-frequency dependent · router + syllables verified by code execution</div>
+</div>
+
+</body>
+</html>
