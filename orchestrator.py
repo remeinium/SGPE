@@ -1,5 +1,5 @@
 """
-WWHO — Pipeline Orchestrator
+WWHO — Pipeline Orchestrator.
 ===================================
 """
 

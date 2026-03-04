@@ -1,5 +1,5 @@
 """
-WWHO — SGPE Export
+WWHO — SGPE Export.
 """
 
 import argparse
