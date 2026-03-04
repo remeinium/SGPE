@@ -16,7 +16,7 @@ from multiprocessing import Pool, cpu_count
 
 from tqdm import tqdm
 
-from router import CodeSwitchSegmenter, Script
+from router import CodeSwitchSegmenter
 from export import export_hf_tokenizer
 
 # ─── Logging ──────
@@ -62,56 +62,46 @@ def _setup_logging(output_dir: str):
 
 SPECIAL_TOKENS = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"]
 
-from router import CodeSwitchSegmenter, Script, _get_char_script
-
 # ─── Multiprocessing ──────
 _worker_segmenter: CodeSwitchSegmenter | None = None
-_worker_sinhala_trie = None
-_worker_devanagari_trie = None
+_worker_dfa_map: dict | None = None
 _worker_script_mode: str = "mixed"
 
 
 def _init_worker(script_mode: str):
-    global _worker_segmenter, _worker_sinhala_trie, _worker_devanagari_trie, _worker_script_mode
-    from linguis_trie import build_sinhala_linguis_trie, build_devanagari_linguis_trie
-    _worker_segmenter     = CodeSwitchSegmenter()
-    _worker_sinhala_trie   = build_sinhala_linguis_trie()
-    _worker_script_mode   = script_mode
-    if script_mode in ("devanagari", "mixed"):
-        _worker_devanagari_trie = build_devanagari_linguis_trie()
+    global _worker_segmenter, _worker_dfa_map, _worker_script_mode
+    from linguis_trie import load_dfa_map
+    
+    _worker_script_mode = script_mode
+    _worker_dfa_map = load_dfa_map(script_mode)
+        
+    language_blocks = {lang: dfa.unicode_blocks for lang, dfa in _worker_dfa_map.items()}
+    _worker_segmenter = CodeSwitchSegmenter(language_blocks)
 
 
 def _pretokenize_line(text: str) -> list[str]:
     tokens: list[str] = []
 
     for seg in _worker_segmenter.segment(text):
-        if seg.script == Script.LATIN:
+        if seg.language == "latin":
             tokens.append(seg.text)
-        elif seg.script == Script.SINHALA:
-            syllables = _worker_sinhala_trie.tokenize(
-                seg.text, leading_space=seg.has_leading_space
-            )
-            tokens.extend(syllables)
-        elif seg.script == Script.DEVANAGARI:
-            if _worker_script_mode == "sinhala":
-                # Devanagari excluded 
-                tokens.append(seg.text)
-            else:
-                syllables = _worker_devanagari_trie.tokenize(
-                    seg.text, leading_space=seg.has_leading_space
-                )
-                tokens.extend(syllables)
         else:
-            # Unknown script — pass through as boundary token
-            tokens.append(seg.text)
+            dfa = _worker_dfa_map.get(seg.language)
+            if not dfa:
+                tokens.append(seg.text)
+                continue
+            syllables = dfa.tokenize(seg.text, leading_space=seg.has_leading_space)
+            tokens.extend(syllables)
 
     return tokens
 
 
 def _is_boundary_token(token: str) -> bool:
     for ch in token:
-        if _get_char_script(ch) is not None:
-            return False
+        if _worker_segmenter:
+            lang = _worker_segmenter._get_char_language(ch)
+            if lang is not None and lang != "latin":
+                return False
     return True
 
 def segment_into_words(syllables: list[str]) -> list[list[str]]:
@@ -170,11 +160,11 @@ class GPETrainer:
 
     def __init__(
         self,
-        vocab_size: int = 200_000,
+        vocab_size: int = 128_000,
         min_freq: int = 2,
         num_workers: int | None = None,
-        checkpoint_every: int = 10_000,
-        prune_freq: int = 50,
+        checkpoint_every: int = 20_000,
+        prune_freq: int = 100,
         script_mode: str = "mixed",
     ):
         self.target_vocab_size = vocab_size
@@ -195,11 +185,13 @@ class GPETrainer:
             num_lines = sum(1 for _ in f)
         print(f"{num_lines:,}")
 
-        CHUNK_SIZE = 5_000_000  # max sentences per Pool lifetime
-        BATCH      = 4_096      # sentences per pool.map() call
+        CHUNK_SIZE = 5_000_000  
+        BATCH      = 4_096      
 
         partial_dir = os.path.join(output_dir, "_partial_counters")
         os.makedirs(partial_dir, exist_ok=True)
+
+        _init_worker(self.script_mode)
 
         total_lines = 0
         chunk_idx   = 0
@@ -696,12 +688,16 @@ class GPETrainer:
         next_id = len(SPECIAL_TOKENS)
 
         for tid, _ in final_freq.most_common():
+            if len(vocab) >= self.target_vocab_size:
+                break
             tok_str = self.symbols.to_str(tid)
             if tok_str not in vocab:
                 vocab[tok_str] = next_id
                 next_id += 1
 
         for sid in range(len(self.symbols)):
+            if len(vocab) >= self.target_vocab_size:
+                break
             s = self.symbols.to_str(sid)
             if s not in vocab:
                 vocab[s] = next_id
@@ -754,11 +750,11 @@ def main():
     parser.add_argument("--vocab_size", type=int, default=128_000,
                         help="Target SGPE vocab size (default 128K)")
     parser.add_argument("--min_freq", type=int, default=2)
-    parser.add_argument("--prune_freq", type=int, default=50,
+    parser.add_argument("--prune_freq", type=int, default=100,
                         help="Drop syllables below this corpus frequency to [UNK]")
     parser.add_argument("--output_dir", type=str, default="output")
     parser.add_argument("--num_workers", type=int, default=None)
-    parser.add_argument("--checkpoint_every", type=int, default=10_000)
+    parser.add_argument("--checkpoint_every", type=int, default=20_000)
     parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--script_mode", type=str, default="mixed",
                         choices=["sinhala", "devanagari", "mixed"],

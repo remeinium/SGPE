@@ -1,6 +1,6 @@
 """
 ==========================================
-WWHO Encoder  (Unified Meta-Vocabulary)
+WWHO Encoder  
 ==========================================
 """
 
@@ -10,8 +10,35 @@ import argparse
 import json
 from typing import Optional
 
-from linguis_trie import LinguisTrie, build_sinhala_linguis_trie
-from gpe_trainer import segment_into_words, _is_boundary_token
+from linguis_trie import LinguisTrie
+
+def _is_boundary_token(token: str, segmenter) -> bool:
+    for ch in token:
+        if segmenter:
+            lang = segmenter._get_char_language(ch)
+            if lang is not None and lang != "latin":
+                return False
+    return True
+
+def segment_into_words(syllables: list[str], segmenter) -> list[list[str]]:
+    words: list[list[str]] = []
+    current: list[str] = []
+
+    for tok in syllables:
+        if _is_boundary_token(tok, segmenter):
+            if current:
+                words.append(current)
+                current = []
+            words.append([tok])
+        else:
+            if tok[0] in (' ', '\t', '\n', '\r') and current:
+                words.append(current)
+                current = []
+            current.append(tok)
+
+    if current:
+        words.append(current)
+    return words
 
 class SGPEEncoder:
 
@@ -22,9 +49,17 @@ class SGPEEncoder:
         self.vocab: dict[str, int]             = data["vocab"]
         self.merges: list[tuple[str, str]]     = [tuple(m) for m in data["merges"]]
         self.special_tokens: list[str]         = data["special_tokens"]
-        self.tokenizer                         = build_sinhala_linguis_trie()
-        self.unk_id                            = self.vocab.get("[UNK]", 1)
         self.leading_space: bool               = data.get("leading_space", False)
+        
+        script_mode = data.get("script_mode", "mixed")
+        
+        from linguis_trie import load_dfa_map
+        from router import CodeSwitchSegmenter
+        
+        self._dfa_map = load_dfa_map(script_mode)
+            
+        language_blocks = {lang: dfa.unicode_blocks for lang, dfa in self._dfa_map.items()}
+        self._segmenter = CodeSwitchSegmenter(language_blocks)
 
         self._merge_priority: dict[tuple[str, str], int] = {
             (a, b): rank for rank, (a, b) in enumerate(self.merges)
@@ -55,19 +90,24 @@ class SGPEEncoder:
         return tokens
 
     def tokenize(self, text: str) -> list[str]:
-        syllables = self.layer1_tokenize(text)
-        words     = segment_into_words(syllables)
-        result: list[str] = []
-        for word_tokens in words:
-            if len(word_tokens) == 1 and _is_boundary_token(word_tokens[0]):
-                result.append(word_tokens[0])
-                continue
-            cleaned = [t if t in self.vocab else "[UNK]" for t in word_tokens]
-            result.extend(self._apply_merges_to_word(cleaned))
-        return result
-
-    def layer1_tokenize(self, text: str) -> list[str]:
-        return self.tokenizer.tokenize(text, leading_space=self.leading_space)
+        tokens: list[str] = []
+        for seg in self._segmenter.segment(text):
+            if seg.language == "latin":
+                tokens.append(seg.text)
+            else:
+                dfa = self._dfa_map.get(seg.language)
+                if not dfa:
+                    tokens.append(seg.text)
+                    continue
+                syllables = dfa.tokenize(seg.text, leading_space=seg.has_leading_space)
+                words     = segment_into_words(syllables, self._segmenter)
+                for word_toks in words:
+                    if len(word_toks) == 1 and _is_boundary_token(word_toks[0], self._segmenter):
+                        tokens.append(word_toks[0])
+                        continue
+                    cleaned = [t if t in self.vocab else "[UNK]" for t in word_toks]
+                    tokens.extend(self._apply_merges_to_word(cleaned))
+        return tokens
 
     def decode(self, ids: list[int]) -> str:
         id_to_token = {v: k for k, v in self.vocab.items()}
@@ -155,15 +195,15 @@ class WWHOMetaEncoder:
         self._meta = MetaVocab(sgpe_vocab, self._tik.n_vocab)
         self._space_id: int = self._meta._sgpe_offset[" "]
 
-        # Router
-        from router import CodeSwitchSegmenter, Script
-        self._segmenter = CodeSwitchSegmenter()
-        self._Script    = Script
-
         # Indic LinguisTries
-        from linguis_trie import build_sinhala_linguis_trie, build_devanagari_linguis_trie
-        self._sinhala_dfa    = build_sinhala_linguis_trie()
-        self._devanagari_dfa = build_devanagari_linguis_trie()
+        from linguis_trie import load_dfa_map, LinguisTrie
+        
+        self._dfa_map: dict[str, LinguisTrie] = load_dfa_map("mixed")
+
+        # Router Segmenter
+        from router import CodeSwitchSegmenter
+        language_blocks = {lang: dfa.unicode_blocks for lang, dfa in self._dfa_map.items()}
+        self._segmenter = CodeSwitchSegmenter(language_blocks)
 
     # ------------------------------------------------------------------
     # Public API
@@ -184,18 +224,17 @@ class WWHOMetaEncoder:
     def encode(self, text: str) -> list[int]:
         ids: list[int] = []
         for seg in self._segmenter.segment(text):
-            if seg.script == self._Script.LATIN:
+            if seg.language == "latin":
                 ids.extend(self._tik.encode(seg.text))
             else:
-                dfa = (
-                    self._sinhala_dfa
-                    if seg.script == self._Script.SINHALA
-                    else self._devanagari_dfa
-                )
+                dfa = self._dfa_map.get(seg.language)
+                if not dfa:
+                    ids.extend(self._tik.encode(seg.text))
+                    continue
                 syllables = dfa.tokenize(seg.text, leading_space=seg.has_leading_space)
-                words     = segment_into_words(syllables)
+                words     = segment_into_words(syllables, self._segmenter)
                 for word_toks in words:
-                    if len(word_toks) == 1 and _is_boundary_token(word_toks[0]):
+                    if len(word_toks) == 1 and _is_boundary_token(word_toks[0], self._segmenter):
                         ids.extend(self._tik.encode(word_toks[0]))
                         continue
                     merged = self._apply_merges(word_toks)
@@ -226,19 +265,19 @@ class WWHOMetaEncoder:
     def tokenize(self, text: str) -> list[str]:
         tokens: list[str] = []
         for seg in self._segmenter.segment(text):
-            if seg.script == self._Script.LATIN:
+            if seg.language == "latin":
                 ids = self._tik.encode(seg.text)
                 tokens.extend(self._tik.decode([i]) for i in ids)
             else:
-                dfa = (
-                    self._sinhala_dfa
-                    if seg.script == self._Script.SINHALA
-                    else self._devanagari_dfa
-                )
+                dfa = self._dfa_map.get(seg.language)
+                if not dfa:
+                    ids = self._tik.encode(seg.text)
+                    tokens.extend(self._tik.decode([i]) for i in ids)
+                    continue
                 syllables = dfa.tokenize(seg.text, leading_space=seg.has_leading_space)
-                words     = segment_into_words(syllables)
+                words     = segment_into_words(syllables, self._segmenter)
                 for word_toks in words:
-                    if len(word_toks) == 1 and _is_boundary_token(word_toks[0]):
+                    if len(word_toks) == 1 and _is_boundary_token(word_toks[0], self._segmenter):
                         ids = self._tik.encode(word_toks[0])
                         tokens.extend(self._tik.decode([i]) for i in ids)
                         continue

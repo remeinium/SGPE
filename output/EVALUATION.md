@@ -1,5 +1,5 @@
 ================================================================================
-BATTERY 1: SINHALA LINGUISTIC COMPLEXITY (2,000 Edge-Case Words)
+BATTERY 1: SINHALA LINGUISTIC COMPLEXITY 
 ================================================================================
 
   Category                        Total   Pass   Fail
@@ -110,7 +110,7 @@ BATTERY 1: SINHALA LINGUISTIC COMPLEXITY (2,000 Edge-Case Words)
   Result: PASS — Tested 500 complex words. Violations: 0, Leading-space violations: 0
 
 ================================================================================
-BATTERY 2: GLITCHED TOKEN DETECTION (v2 Multi-Script)
+BATTERY 2: GLITCHED TOKEN DETECTION
 ================================================================================
   Total unified vocab size: 328,020 (SGPE component: 128,001)
   Zero-usage SGPE tokens: 1,394
@@ -119,7 +119,7 @@ BATTERY 2: GLITCHED TOKEN DETECTION (v2 Multi-Script)
   Result: PASS — Zero: 1394, Near-Zero: 3163, Glitched: 0
 
 ================================================================================
-BATTERY 3: FRONTIER BENCHMARKING (V2 STRATIFIED)
+BATTERY 3: FRONTIER BENCHMARKING 
 ================================================================================
 
 1. Tokenization Anatomy (Visual Examples)
@@ -153,15 +153,15 @@ Evaluating 1,499,950 sentences...
 ====== Sinhala Results ======
 Tokenizer            |       Tokens |     TWR | Chr/Tok |  % Reduction
 ----------------------------------------------------------------------
-SGPE                 |    6,665,177 |   1.276 |    4.83 |            -
-OpenAI (o200k_base)  |   17,360,196 |   3.324 |    1.85 |        61.6%
-Llama 4 Scout        |   18,157,707 |   3.476 |    1.77 |        63.3%
-DeepSeek V3          |   29,152,698 |   5.581 |    1.10 |        77.1%
+SGPE                 |    6,654,288 |   1.274 |    4.83 |            -
+OpenAI (o200k_base)  |   17,360,196 |   3.324 |    1.85 |        61.7%
+Llama 4 Scout        |   18,157,707 |   3.476 |    1.77 |        63.4%
+DeepSeek V3          |   29,152,698 |   5.581 |    1.10 |        77.2%
 
 ====== Hindi Results ======
 Tokenizer            |       Tokens |     TWR | Chr/Tok |  % Reduction
 ----------------------------------------------------------------------
-SGPE                 |   13,432,763 |   1.181 |    4.29 |            -
+SGPE                 |   13,433,554 |   1.181 |    4.29 |            -
 OpenAI (o200k_base)  |   18,394,075 |   1.617 |    3.13 |        27.0%
 Llama 4 Scout        |   19,566,121 |   1.720 |    2.94 |        31.3%
 DeepSeek V3          |   31,682,218 |   2.786 |    1.82 |        57.6%
@@ -169,7 +169,7 @@ DeepSeek V3          |   31,682,218 |   2.786 |    1.82 |        57.6%
 ====== English Results ======
 Tokenizer            |       Tokens |     TWR | Chr/Tok |  % Reduction
 ----------------------------------------------------------------------
-SGPE                 |    7,240,151 |   1.330 |    4.46 |            -
+SGPE                 |    7,240,147 |   1.330 |    4.46 |            -
 OpenAI (o200k_base)  |    7,420,527 |   1.364 |    4.35 |         2.4%
 Llama 4 Scout        |    7,512,843 |   1.381 |    4.30 |         3.6%
 DeepSeek V3          |    7,904,670 |   1.453 |    4.09 |         8.4%
@@ -177,7 +177,7 @@ DeepSeek V3          |    7,904,670 |   1.453 |    4.09 |         8.4%
 ========================= OVERALL Results =========================
 Tokenizer            |       Tokens |     TWR | Chr/Tok |  % Reduction
 ----------------------------------------------------------------------
-SGPE                 |   27,338,091 |   1.241 |    4.47 |            -
+SGPE                 |   27,327,989 |   1.240 |    4.47 |            -
 OpenAI (o200k_base)  |   43,174,798 |   1.959 |    2.83 |        36.7%
 Llama 4 Scout        |   45,236,671 |   2.053 |    2.70 |        39.6%
 DeepSeek V3          |   68,739,586 |   3.119 |    1.78 |        60.2%
@@ -216,7 +216,7 @@ BATTERY 5: BOUNDARY & LEADING SPACE EDGE-CASES
   Result: PASS — Violations: 0
 
 ================================================================================
-BATTERY 6: ZERO-BREAKAGE GUARANTEE
+BATTERY 6: ZERO-BREAKAGE GUARANTEE (Sinhala)
 ================================================================================
   Testing all C + HAL + ZWJ + C pairs...
   Testing C + HAL + C pairs (implicit conjuncts)...
@@ -230,7 +230,7 @@ BATTERY 6: ZERO-BREAKAGE GUARANTEE
   Result: PASS — Ran 1,703 exhaustive breakage tests. Violations: 0
 
 ================================================================================
-BATTERY 6: ZERO-BREAKAGE GUARANTEE (v2 Multi-Script)
+BATTERY 6B: ZERO-BREAKAGE GUARANTEE (Devanagari)
 ================================================================================
   Testing Devanagari C + HAL + C pairs (implicit conjuncts)...
   Testing Devanagari C + vowel_sign...
@@ -238,7 +238,7 @@ BATTERY 6: ZERO-BREAKAGE GUARANTEE (v2 Multi-Script)
   Testing Devanagari C + anusvara / visarga / chandrabindu...
   Testing Devanagari C + vowel_sign + modifier...
 
-  Result: PASS — Devanagari Violations: 0
+  Result: PASS — Ran 1,078 exhaustive breakage tests. Violations: 0
 
 ================================================================================
 BATTERY 7: DEVANAGARI LINGUISTIC COMPLEXITY
@@ -280,7 +280,7 @@ BATTERY 8: CODE-SWITCHING INTEGRITY
   Result: PASS — Tested 13 code-switching cases. Violations: 0, Crashes: 0
 
 ================================================================================
-BATTERY 9: META-VOCAB ROUND-TRIP (SGPEMetaEncoder)
+BATTERY 9: META-VOCAB ROUND-TRIP 
 ================================================================================
 
   Sentences:     1,499,950

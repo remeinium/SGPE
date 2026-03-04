@@ -23,8 +23,9 @@ class SchemaError(ValueError):
 class LanguageSchema:
     language: str
     grammar_notation: str
-    char_classes: dict[str, set[int]]         # class-label → set of codepoints
-    transitions: dict[str, dict[str, Optional[str]]]  # state → (class → next_state | None)
+    unicode_blocks: list[tuple[int, int]]
+    char_classes: dict[str, set[int]]         
+    transitions: dict[str, dict[str, Optional[str]]]  
     start_state: str
     accept_states: set[str]
     emit_states: set[str]
@@ -62,6 +63,10 @@ class SchemaLoader:
         if "dfa" not in raw:
             raise SchemaError(f"[{path}] Missing 'dfa' key.")
 
+        unicode_blocks = []
+        for rng in raw.get("unicode_blocks", []):
+            unicode_blocks.append((int(rng[0], 16), int(rng[1], 16)))
+
         char_classes: dict[str, set[int]] = {}
         for label, definition in raw["char_classes"].items():
             if label.startswith("_"):
@@ -83,6 +88,7 @@ class SchemaLoader:
         return LanguageSchema(
             language=language,
             grammar_notation=grammar,
+            unicode_blocks=unicode_blocks,
             char_classes=char_classes,
             transitions=transitions,
             start_state=start_state,
@@ -192,7 +198,7 @@ class LinguisTrie:
             if last_accept_pos > span_start:
                 emit_end = last_accept_pos
             else:
-                emit_end = pos
+                emit_end = span_start + 1  # Fallback: Emit only the first character as an ORPHAN
 
             tokens.append(pending_space + text[span_start:emit_end])
             pending_space = ""
@@ -210,6 +216,10 @@ class LinguisTrie:
     @property
     def language(self) -> str:
         return self._schema.language
+
+    @property
+    def unicode_blocks(self) -> list[tuple[int, int]]:
+        return self._schema.unicode_blocks
 
     @property
     def regex(self) -> str:
@@ -237,12 +247,18 @@ def build_linguis_trie(schema_path: str) -> LinguisTrie:
     return _dfa_cache[schema_path]
 
 
-def build_sinhala_linguis_trie() -> LinguisTrie:
-    return build_linguis_trie(os.path.join(_SCHEMA_DIR, "sinhala.json"))
-
-
-def build_devanagari_linguis_trie() -> LinguisTrie:
-    return build_linguis_trie(os.path.join(_SCHEMA_DIR, "devanagari.json"))
+def load_dfa_map(script_mode: str) -> dict[str, LinguisTrie]:
+    import glob
+    dfa_map = {}
+    pattern = os.path.join(_SCHEMA_DIR, "*.json")
+    for file in glob.glob(pattern):
+        try:
+            trie = build_linguis_trie(file)
+            if script_mode in ("mixed", "all") or script_mode == trie.language:
+                dfa_map[trie.language] = trie
+        except Exception as e:
+            print(f"Warning: Failed to load schema {file}: {e}")
+    return dfa_map
 
 
 # ---------------------------------------------------------------------------
@@ -256,9 +272,12 @@ if __name__ == "__main__":
     print("DFA Tokenizer — self-test")
     print("=" * 65)
 
-    # --- Sinhala ---
-    sinhala_dfa = build_sinhala_linguis_trie()
-    print(f"\n[Sinhala DFA]  grammar: {sinhala_dfa.grammar}\n")
+    # --- Load All Schemas ---
+    dfas = load_dfa_map("all")
+    sinhala_dfa = dfas.get("sinhala")
+    
+    if sinhala_dfa:
+        print(f"\n[Sinhala DFA]  grammar: {sinhala_dfa.grammar}\n")
 
     sinhala_tests = [
         "ශ්‍රී ලංකා ද්වීපයේ ස්වෛරීභාවය සහ ත්‍රිවිධ හමුදාව.",
@@ -279,29 +298,30 @@ if __name__ == "__main__":
         print("-" * 65)
 
     # --- Devanagari ---
-    deva_dfa = build_devanagari_linguis_trie()
-    print(f"\n[Devanagari DFA]  grammar: {deva_dfa.grammar}\n")
-
-    deva_tests = [
-        "नमस्ते",
-        "भारत",
-        "हिन्दी",
-        "संस्कृत",
-        "क़िला",
-        "ज़िंदगी",
-        "प्रेम",
-        "द्वारा",
-        "श्रीमान्",
-        "हिन्दुस्तान",
-        "नमस्कार दुनिया",
-        "मैं ठीक हूँ",
-        "विद्यालय में पढ़ाई होती है।",
-    ]
-
-    for text in deva_tests:
-        toks = deva_dfa.tokenize(text, leading_space=True)
-        print(f"  Input : {text}")
-        print(f"  Syllables: {toks}")
+    deva_dfa = dfas.get("devanagari")
+    if deva_dfa:
+        print(f"\n[Devanagari DFA]  grammar: {deva_dfa.grammar}\n")
+    
+        deva_tests = [
+            "नमस्ते",
+            "भारत",
+            "हिन्दी",
+            "संस्कृत",
+            "क़िला",
+            "ज़िंदगी",
+            "प्रेम",
+            "द्वारा",
+            "श्रीमान्",
+            "हिन्दुस्तान",
+            "नमस्कार दुनिया",
+            "मैं ठीक हूँ",
+            "विद्यालय में पढ़ाई होती है।",
+        ]
+    
+        for text in deva_tests:
+            toks = deva_dfa.tokenize(text, leading_space=True)
+            print(f"  Input : {text}")
+            print(f"  Syllables: {toks}")
         print(f"  Count : {len(toks)}")
         print("-" * 65)
 

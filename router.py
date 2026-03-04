@@ -8,51 +8,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Optional
 
 import tiktoken
-
-from linguis_trie import build_sinhala_linguis_trie, build_devanagari_linguis_trie, LinguisTrie
-
-
-# ---------------------------------------------------------------------------
-# Script-block detection
-# ---------------------------------------------------------------------------
-
-class Script(Enum):
-    LATIN  = auto()   # ASCII, Latin, digits, punctuation, code, emoji, etc.
-    SINHALA     = auto()
-    DEVANAGARI  = auto()
-
-_sinhala_dfa    = build_sinhala_linguis_trie()
-_devanagari_dfa = build_devanagari_linguis_trie()
-
-_INDIC_PUNCT_CHARS = "\u0964\u0965"
-
-def _get_char_script(ch: str) -> Optional[Script]:
-    if '\u0D80' <= ch <= '\u0DFF':
-        return Script.SINHALA
-    if '\u0900' <= ch <= '\u097F':
-        return Script.DEVANAGARI
-    if ch in _INDIC_PUNCT_CHARS:
-        return Script.SINHALA  # Dandas handled identically by both schemas
-    return None
-
-def _is_indic_joiner(ch: str) -> bool:
-    # True if ZWJ or ZWNJ
-    return ch in ('\u200C', '\u200D')
-
-
-# ---------------------------------------------------------------------------
-# Segment dataclass
-# ---------------------------------------------------------------------------
 
 @dataclass
 class TextSegment:
     text: str
-    script: Script
-    has_leading_space: bool = False   # True if a boundary space was absorbed
+    language: str                    
+    has_leading_space: bool = False   
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +23,25 @@ class TextSegment:
 # ---------------------------------------------------------------------------
 
 class CodeSwitchSegmenter:
+    def __init__(self, language_blocks: dict[str, list[tuple[int, int]]] = None):
+        """
+        language_blocks: maps language name (e.g. 'sinhala') to a list of (start_cp, end_cp) inclusive
+        """
+        self._ranges: list[tuple[int, int, str]] = []
+        if language_blocks:
+            for lang, blocks in language_blocks.items():
+                for start, end in blocks:
+                    self._ranges.append((start, end, lang))
+
+    def _get_char_language(self, ch: str) -> Optional[str]:
+        if ch in ('\u200C', '\u200D'):
+            return "__joiner__"
+        cp = ord(ch)
+        for start, end, lang in self._ranges:
+            if start <= cp <= end:
+                return lang
+        return None
+
     def segment(self, text: str) -> list[TextSegment]:
         if not text:
             return []
@@ -70,40 +52,45 @@ class CodeSwitchSegmenter:
 
         while pos < n:
             ch = text[pos]
-            ch_script = _get_char_script(ch)
+            ch_lang = self._get_char_language(ch)
 
-            is_indic_start = (ch_script is not None)
+            is_indic_start = (ch_lang is not None)
 
             if not is_indic_start:
                 # ─── 1. Accumulate Latin block ───
                 start = pos
                 while pos < n:
                     ch2 = text[pos]
-                    if _get_char_script(ch2) is not None:
-                        break  # Found distinct Indic start
+                    lang2 = self._get_char_language(ch2)
+                    if lang2 is not None and lang2 != "__joiner__":
+                        break  
                     pos += 1
                 
-                latin_chunk = text[start:pos]
+                latino_only = text[start:pos]
                 
                 has_ls = False
-                if pos < n and latin_chunk.endswith(" "):
-                    latin_chunk = latin_chunk[:-1]
+                if pos < n and latino_only.endswith(" "):
+                    latino_only = latino_only[:-1]
                     has_ls = True
                 
-                if latin_chunk:
-                    segments.append(TextSegment(text=latin_chunk, script=Script.LATIN))
+                if latino_only:
+                    segments.append(TextSegment(text=latino_only, language="latin"))
 
                 if has_ls and pos < n:
                     indic_start = pos
-                    current_script = _get_char_script(text[pos]) or Script.SINHALA
+                    current_lang = self._get_char_language(text[pos])
+                    if current_lang == "__joiner__" or current_lang is None:
+                        current_lang = "__unknown__"
                     
                     while pos < n:
                         c = text[pos]
-                        c_script = _get_char_script(c)
-                        if _is_indic_joiner(c):
+                        c_lang = self._get_char_language(c)
+                        if c_lang == "__joiner__":
                             pos += 1
-                        elif c_script is not None:
-                            if c_script != current_script and c not in _INDIC_PUNCT_CHARS:
+                        elif c_lang is not None:
+                            if current_lang == "__unknown__":
+                                current_lang = c_lang
+                            elif c_lang != current_lang:
                                 break
                             pos += 1
                         else:
@@ -111,21 +98,20 @@ class CodeSwitchSegmenter:
                             
                     segments.append(TextSegment(
                         text=text[indic_start:pos],
-                        script=current_script,
+                        language=current_lang,
                         has_leading_space=True
                     ))
             else:
-                # ─── 2. Accumulate Indic block (no prior Latin with space) ───
                 indic_start = pos
-                current_script = ch_script
+                current_lang = ch_lang
                 
                 while pos < n:
                     c = text[pos]
-                    c_script = _get_char_script(c)
-                    if _is_indic_joiner(c):
+                    c_lang = self._get_char_language(c)
+                    if c_lang == "__joiner__":
                         pos += 1
-                    elif c_script is not None:
-                        if c_script != current_script and c not in _INDIC_PUNCT_CHARS:
+                    elif c_lang is not None:
+                        if c_lang != current_lang:
                             break
                         pos += 1
                     else:
@@ -133,83 +119,17 @@ class CodeSwitchSegmenter:
                         
                 segments.append(TextSegment(
                     text=text[indic_start:pos],
-                    script=current_script,
+                    language=current_lang,
                     has_leading_space=False
                 ))
 
         return segments
-
-
-
-# ---------------------------------------------------------------------------
-# Router
-# ---------------------------------------------------------------------------
-
-class CodeSwitchRouter:
-    def __init__(
-        self,
-        tiktoken_model: str = "o200k_base",
-        sinhala_schema: Optional[str] = None,
-        devanagari_schema: Optional[str] = None,
-    ):
-        # Indic DFAs
-        self._sinhala_dfa:    LinguisTrie = build_sinhala_linguis_trie()
-        self._devanagari_dfa: LinguisTrie = build_devanagari_linguis_trie()
-
-        self._enc = tiktoken.get_encoding(tiktoken_model)
-
-        self._segmenter = CodeSwitchSegmenter()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def tokenize_to_strings(self, text: str) -> list[str]:
-        result: list[str] = []
-        for seg in self._segmenter.segment(text):
-            result.extend(self._route_segment_strings(seg))
-        return result
-
-    def tokenize_to_ids(self, text: str) -> list[int]:
-        raise NotImplementedError(
-            "Use WWHOMetaEncoder.encode() for unified IDs. "
-            "tokenize_to_ids() on the raw router is intentionally not implemented "
-            "to prevent accidental ID space collision."
-        )
-
-        return self._enc.encode(text)
-
-    def tiktoken_decode(self, ids: list[int]) -> str:
-        return self._enc.decode(ids)
-
-    def tiktoken_vocab_size(self) -> int:
-        return self._enc.n_vocab
-
-    # ------------------------------------------------------------------
-    # Internal routing
-    # ------------------------------------------------------------------
-
-    def _route_segment_strings(self, seg: TextSegment) -> list[str]:
-        if seg.script == Script.LATIN:
-            ids = self._enc.encode(seg.text)
-            return [self._enc.decode([i]) for i in ids]
-
-        # Indic — route to appropriate DFA
-        dfa = (
-            self._sinhala_dfa
-            if seg.script == Script.SINHALA
-            else self._devanagari_dfa
-        )
-        return dfa.tokenize(seg.text, leading_space=seg.has_leading_space)
-
 
 # ---------------------------------------------------------------------------
 # Self-test
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    router = CodeSwitchRouter()
-
     test_cases = [
         # Pure Sinhala
         "ශ්‍රී ලංකාව",
@@ -233,15 +153,13 @@ if __name__ == "__main__":
         "AI (Artificial Intelligence) සහ देवनागरी text.",
     ]
 
-    print("=" * 70)
-    print("CodeSwitchRouter — self-test")
-    print("=" * 70)
-
-    seg = CodeSwitchSegmenter()
+    language_blocks = {
+        "sinhala": [(0x0d80, 0x0dff)],
+        "devanagari": [(0x0900, 0x097f)]
+    }
+    seg = CodeSwitchSegmenter(language_blocks)
+    
     for text in test_cases:
-        tokens = router.tokenize_to_strings(text)
         blocks = seg.segment(text)
         print(f"\n  Input  : {text!r}")
-        print(f"  Blocks : {[(b.text, b.script.name, b.has_leading_space) for b in blocks]}")
-        print(f"  Tokens : {tokens}")
-        print(f"  Count  : {len(tokens)}")
+        print(f"  Blocks : {[(b.text, b.language, b.has_leading_space) for b in blocks]}")

@@ -1,0 +1,162 @@
+In this section, we evaluate the performance of the WWHO architecture across three key scripts (Sinhala, Devanagari, and English) and compare it against frontier tokenizers: OpenAI’s \texttt{o200k\_base}, Meta’s \texttt{Llama 4 Scout}, and \texttt{DeepSeek V3}. We report the Token-to-Word Ratio (TWR), the characters per token (CPT), and the relative token reduction.
+
+For training and evaluation, we created a 30-million sentence corpus\cite{wwho30m} aggregating four open-source datasets to represent a balanced mix of Sinhala (35\%), Hindi(45\%), and English(20\%). The final corpus consists of: 
+\begin{enumerate}
+\item MADLAD\_CulturaX\_cleaned\cite{polyglots}
+\item A filtered subset of CC100-Sinhala\cite{cc100sinhala} containing only Sinhala and English code-mixed sentences.
+\item Two subsets of MADLAD-400 (pure Hindi and pure English)\cite{allen2023madlad400} 
+\item A filtered subset of HINMIX\_hi-en\cite{hicm2024synthetic} containing only Hindi and English code-mixed sentences.
+\end{enumerate}
+
+The corpus was split 95\%/5\% into training and test sets, yielding a 1,499,950-sentence evaluation partition containing 122 million characters.
+
+\subsection{Training Configurations}
+We set the training hyperparameters as follows, and the evaluation results are based on these configurations.
+
+\begin{table}[H]
+\caption{SGPE Training Hyperparameters}
+\label{tab:hyperparams}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Parameter & Value \\
+\midrule
+Unified Meta-Vocabulary Size & 328,020 \\
+BPE (o200k\_base) Vocab Size & 200,019 \\
+SGPE Vocab Size & 128,000$^\dagger$ \\
+Prune frequency threshold $\theta$ & 100 \\
+Training corpus size & $\sim$28.5 M sentences \\
+Evaluation corpus size & $\sim$1.5 M sentences \\
+Code-switching routing & Enabled \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\paragraph{$^\dagger$Note:} The SGPE vocabulary consists of 128,000 tokens, as the hyperparameter is set to 128,000. Since the LinguisTrie attaches space as a prefix to the next syllable, the standalone space token is not included in the SGPE vocabulary. Therefore, one space token is injected later, as an architectural design to ensure the system's integrity. Hence, the total SGPE vocabulary size is 128,001 tokens.
+
+\subsection{Tokenization Efficiency (TWR, CPT \& Reduction)}
+The Token-to-Word Ratio (TWR) measures how many tokens are required to represent a single word on average. A TWR closer to 1.00 indicates that the tokenizer is effectively treating each word as a single unit without any fragmentation.
+
+\begin{table}[H]
+\centering
+\caption{Tokenization Efficiency Comparison Across Scripts}
+\label{tab:tokenization_comparison}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Script} & \textbf{Tokenizer} & \textbf{Total Tokens} & \textbf{TWR} & \textbf{CPT} & \textbf{\% Reduction (vs SGPE)} \\
+\midrule
+Sinhala & SGPE (WWHO)    & 6,654,288  & 1.274 & 4.83 & ---    \\
+        & OpenAI (o200k) & 17,360,196 & 3.324 & 1.85 & 61.7\% \\
+        & Llama 4 Scout  & 18,157,707 & 3.476 & 1.77 & 63.4\% \\
+        & DeepSeek V3    & 29,152,698 & 5.581 & 1.10 & 77.2\% \\
+\midrule
+Hindi   & SGPE (WWHO)    & 13,433,554 & 1.181 & 4.29 & ---    \\
+        & OpenAI (o200k) & 18,394,075 & 1.617 & 3.13 & 27.0\% \\
+        & Llama 4 Scout  & 19,566,121 & 1.720 & 2.94 & 31.3\% \\
+        & DeepSeek V3    & 31,682,218 & 2.786 & 1.82 & 57.6\% \\
+\midrule
+English & SGPE (WWHO)    & 7,240,147  & 1.330 & 4.46 & ---    \\
+        & OpenAI (o200k) & 7,420,527  & 1.364 & 4.35 & 2.4\%  \\
+        & Llama 4 Scout  & 7,512,843  & 1.381 & 4.30 & 3.6\%  \\
+        & DeepSeek V3    & 7,904,670  & 1.453 & 4.09 & 8.4\%  \\
+\midrule
+Overall & SGPE (WWHO)    & 27,327,989 & 1.240 & 4.47 & ---    \\
+        & OpenAI (o200k) & 43,174,798 & 1.959 & 2.83 & 36.7\% \\
+        & Llama 4 Scout  & 45,236,671 & 2.053 & 2.70 & 39.6\% \\
+        & DeepSeek V3    & 68,739,586 & 3.119 & 1.78 & 60.2\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Example Tokenizations Across Tokenizers}
+\label{tab:example_tokenizations}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Word} & \textbf{Tokenizer} & \textbf{Tokens} & \textbf{Count} \\
+\midrule
+\sn{ව්යාකරණය}
+  & SGPE (Ours)    & \sn{['ව්යා', 'කරණය']}                                                              & 2 \\
+  & OpenAI (o200k) & \sn{['ව්', 'යා', 'ක', 'රණ', 'ය']}                                                  & 5 \\
+  & Llama 4 Scout  & \sn{['ව්', 'යා', 'කර', 'ණය']}                                                      & 4 \\
+  & DeepSeek V3    & \sn{['ව', ''්', 'ය', 'ා', 'ක', 'ර',} \dejv{'�'}, \dejv{'�'}, \sn{'ය']}            & 9 \\
+\midrule
+\sn{ශ්‍රී ලංකාව}
+  & SGPE (Ours)    & \sn{['ශ්\textbackslash u200dරී', ' ලංකාව']}                                                      & 2 \\
+  & OpenAI (o200k) & \sn{['ශ්', '\textbackslash u200dරී', ' ලංක', 'ාව']}                                              & 4 \\
+  & Llama 4 Scout  & \sn{['ශ්', '\textbackslash u200dර', ''ී', ' ල', 'ං', 'ක', 'ාව']}                                  & 7 \\
+  & DeepSeek V3    & [\dejv{'�'}, \dejv{'�'}, `\sn{්}', '\textbackslash u200d', \sn{'ර', ' 'ී'}, \dejv{'�'}, \dejv{'�'}, \dejv{'�'}, \dejv{'�'}, \sn{'ක', 'ා', 'ව']} & 13 \\
+\midrule
+\dev{अंतर्राष्ट्रीय}
+  & SGPE (Ours)    & \dev{['अंतर्राष्ट्रीय']}                                                            & 1 \\
+  & OpenAI (o200k) & \dev{['अ', 'ंतर', '्र', 'ाष्ट्रीय']}                                                & 4 \\
+  & Llama 4 Scout  & \dev{['अ', 'ंतर', '्र', 'ाष्ट्रीय']}                                                & 4 \\
+  & DeepSeek V3    & \dev{['अ', 'ंत', 'र', '्र', 'ाष', '्ट', '्री', 'य']}                                & 8 \\
+\midrule
+\dev{कृत्रिम बुद्धिमत्ता}
+  & SGPE (Ours)    & \dev{['कृत्रिम', ' बुद्धिमत्ता']}                                                   & 2 \\
+  & OpenAI (o200k) & \dev{['क', 'ृ', 'त्र', 'िम', ' बुद्ध', 'िम', 'त्ता']}                               & 7 \\
+  & Llama 4 Scout  & \dev{['क', 'ृ', 'त्र', 'िम', ' ब', 'ुद्ध', 'िम', 'त्ता']}                           & 8 \\
+  & DeepSeek V3    & \dev{['क', 'ृ', 'त्र', 'िम', ' ब', 'ुद', '्ध', 'िम', 'त्त', 'ा']}                  & 10 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Key Observations}
+\paragraph{The ``Token Tax" Reduction:} For Sinhala text, SGPE demonstrates a massive 61.7\%-77.2\% reduction in token count, allowing 4.83 characters per token. While frontier models often fragment a single Sinhala word into 3-10 tokens with meaningless sub-word pieces, SGPE maintains a TWR of 1.274 while ensuring the Zero-Breakage Guarantee. And for Devanagari (Hindi), SGPE achieves 1.181 TWR and 4.29 CPT, reducing 27.0\%-57.6\% token reduction.
+
+\paragraph{Overall Efficiency:} Across a mixed multilingual test set containing Sinhala, Hindi, and English text in a 35\%:45\%:20\% ratio, SGPE reduces the total token count by 36.7\%-60.2\% compared to the industry standard frontier tokenizers.
+
+\paragraph{Reduction on English?:}
+An unexpected observation during evaluation was the 2.4\%-8.4\% reduction in token count for the English compared to other tokenizers. While WWHO routes Latin text directly to the foundation BPE tokenizer, the observed efficiency gain is a result of unintentional code-switching within real-world datasets.
+\textbf{The Router's Contribution:} In datasets classified as English, there can be a minor percentage of Abugida texts(e.g., proper nouns, locations, or localized terms). While the foundation BPE tokenizer fragments these foreign segments into byte-level tokens, the WWHO's Router accurately isolates these Abugida clusters. Then LinguisTrie and SGPE perfectly tokenize them. This localized efficiency results in the observed token reduction even in English-dominant contexts. 
+
+To verify this observation and that the routing layer does not modify English segments while processing, we conducted a pure ASCII Stress Test using 10,000 sentences containing zero Abugida characters. In this controlled environment, the token counts produced by WWHO and o200k\_base were 100\% identical (0.0\% difference), which means all the ASCII text was processed only by the BPE tokenizer.
+
+\subsection{Context Window Capacity Analysis}
+One of the most impactful factors of the efficiency of a tokenizer is the LLM context window. The context window capacity multiplier, which measures the context window saving by a tokenizer compared to another, can be calculated by the following formula.
+$$ \text{Capacity Multiplier} = \frac{\text{$Tokens_{baseline}$}}{\text{$Tokens_{sgpe}$}} $$
+
+\begin{table}[H]
+\centering
+\caption{Effective Context Window Capacity  Multiplier Comparison}
+\label{tab:context_window_savings}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llrrl@{}}
+\toprule
+\textbf{Script} & \textbf{Tokenizer} & \textbf{SGPE Tokens} & \textbf{Other Tokens} & \textbf{Context Multiplier} \\
+\midrule
+Sinhala & vs OpenAI (o200k) & 6,654,288  & 17,360,196 & 2.61$\times$ \\
+        & vs Llama 4 Scout  & 6,654,288  & 18,157,707 & 2.73$\times$ \\
+        & vs DeepSeek V3    & 6,654,288  & 29,152,698 & 4.38$\times$ \\
+\midrule
+Hindi   & vs OpenAI (o200k) & 13,433,554 & 18,394,075 & 1.37$\times$ \\
+        & vs Llama 4 Scout  & 13,433,554 & 19,566,121 & 1.46$\times$ \\
+        & vs DeepSeek V3    & 13,433,554 & 31,682,218 & 2.36$\times$ \\
+\midrule
+English & vs OpenAI (o200k) & 7,240,147  & 7,420,527  & 1.02$\times$ \\
+        & vs Llama 4 Scout  & 7,240,147  & 7,512,843  & 1.04$\times$ \\
+        & vs DeepSeek V3    & 7,240,147  & 7,904,670  & 1.09$\times$ \\
+\midrule
+Overall & vs OpenAI (o200k) & 27,327,989 & 43,174,798 & 1.58$\times$ \\
+        & vs Llama 4 Scout  & 27,327,989 & 45,236,671 & 1.66$\times$ \\
+        & vs DeepSeek V3    & 27,327,989 & 68,739,586 & 2.52$\times$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+As shown in our evaluation, SGPE provides a very effective context window capacity expansion for Abugida scripts. This allows over a billion Abugida users to use LLMs more effectively and get better responses. \textbf{The Token Tax} will have a significant drop via the WWHO architecture.
+
+\subsection{Vocabulary Quality \& Glitch Token Prevention}
+Standard BPE tokenizers often allocate vocabulary capacity to statistical anomalies, leading to "glitch tokens" or orphaned Unicode joiners (e.g., isolated ZWJ or Viramas). In Abugida scripts, the generation of such artifacts by an LLM causes low response quality. To evaluate vocabulary quality, we conducted a Glitch Token detection test across the 1.5-million sentence evaluation corpus.
+The results confirm that SGPE produces 0 glitch tokens for both Sinhala and Devanagari scripts. Out of 128,001 SGPE tokens (Sinhala and Devanagari), only 1,394 (roughly 1\%) remained unused during evaluation. This rate shows that by enforcing syllable-level linguistic accuracy, the SGPE algorithm avoids creating meaningless fragments and effectively uses its vocabulary for real-world multilingual script structures.
+
+\subsection{Empirical Validation of Zero-Breakage Guarantee}
+To verify the Zero-Breakage Guarantee defined and formally proven in Sections 3 and 4, we conducted a Round-Trip test using the same test corpus. Across 122 million mixed multilingual characters, SGPE achieved 100\% round-trip consistency with zero non-[UNK] mismatches, practically verifying the theoretical proof.

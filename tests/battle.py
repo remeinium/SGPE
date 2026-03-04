@@ -31,8 +31,8 @@ from battle_core import (
     HAL, ZWJ, ANUSVARA,
 )
 
-from linguis_trie import build_devanagari_linguis_trie, LinguisTrie
-from router import CodeSwitchSegmenter, Script
+from linguis_trie import load_dfa_map, LinguisTrie
+from router import CodeSwitchSegmenter
 
 try:
     from encoder import WWHOMetaEncoder
@@ -136,7 +136,7 @@ def test_devanagari_complexity(dfa: LinguisTrie | None = None) -> TestResult:
     print("=" * 80)
 
     if dfa is None:
-        dfa = build_devanagari_linguis_trie()
+        dfa = load_dfa_map("devanagari")["devanagari"]
 
     word_bank = _generate_devanagari_word_bank()
     print(f"  Generated {len(word_bank)} Devanagari test words")
@@ -223,7 +223,16 @@ def test_code_switching_integrity(sgpe: SGPEEncoder) -> TestResult:
     print("BATTERY 8: CODE-SWITCHING INTEGRITY")
     print("=" * 80)
 
-    segmenter = CodeSwitchSegmenter()
+    language_blocks = {}
+    if hasattr(sgpe, "_dfa_map"):
+        language_blocks = {lang: dfa.unicode_blocks for lang, dfa in sgpe._dfa_map.items()}
+    else:
+        # fallback for Layer 1 simple sgpe
+        language_blocks = {
+            "sinhala": [(0x0d80, 0x0dff)],
+            "devanagari": [(0x0900, 0x097f)]
+        }
+    segmenter = CodeSwitchSegmenter(language_blocks)
     violations = []
     crash_count = 0
     total = len(CODE_SWITCH_TEST_CASES)
@@ -234,12 +243,12 @@ def test_code_switching_integrity(sgpe: SGPEEncoder) -> TestResult:
         try:
             segments = segmenter.segment(text)
             for seg in segments:
-                if seg.script == Script.LATIN:
+                if seg.language == "latin":
                     if _SINHALA_RE.search(seg.text) or _DEVANAGARI_RE.search(seg.text):
                         violations.append(
                             f"  ROUTING: Indic chars in Latin segment '{seg.text}' ({desc})"
                         )
-                elif seg.script in (Script.SINHALA, Script.DEVANAGARI):
+                elif seg.language in ("sinhala", "devanagari"):
                     pure_latin = re.findall(r'[A-Za-z]', seg.text)
                     if pure_latin:
                         violations.append(
@@ -313,6 +322,7 @@ def test_meta_vocab_roundtrip(
     sentences = list(test_sentences)
     if full_corpus_path and os.path.exists(full_corpus_path):
         print(f"  Loading full corpus from {full_corpus_path}...")
+        sentences = []
         import json
         with open(full_corpus_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -561,6 +571,7 @@ def test_roundtrip_consistency(
     sentences = list(test_sentences)
     if full_corpus_path and os.path.exists(full_corpus_path):
         print(f"  Loading full corpus from {full_corpus_path}...")
+        sentences = []
         with open(full_corpus_path, "r", encoding="utf-8") as f:
             for line in f:
                 try:
@@ -643,20 +654,22 @@ def test_roundtrip_consistency(
     )
 
 
-def test_zero_breakage_extended(enc_mixed) -> TestResult:
-    from battle_core import test_zero_breakage_extended, TestStatus, TestResult
+def test_devanagari_zero_breakage_extended(enc_mixed) -> TestResult:
+    from battle_core import TestStatus, TestResult
     
     print("\n" + "=" * 80)
-    print("BATTERY 6: ZERO-BREAKAGE GUARANTEE")
+    print("BATTERY 6B: ZERO-BREAKAGE GUARANTEE (Devanagari)")
     print("=" * 80)
 
     violations = []
-    dfa = enc_mixed._devanagari_dfa
+    test_count = 0
+    dfa = enc_mixed._dfa_map["devanagari"]
     
     print("  Testing Devanagari C + HAL + C pairs (implicit conjuncts)...")
     for c1 in list(sorted(DEV_CONSONANTS))[:15]:
         for c2 in list(sorted(DEV_CONSONANTS))[:15]:
             text = c1 + VIRAMA_DEV + c2
+            test_count += 1
             tokens = dfa.tokenize(text, leading_space=False)
             if len(tokens) != 1:
                 violations.append(f"  Devanagari C+HAL+C split: '{text}' → {tokens}")
@@ -665,6 +678,7 @@ def test_zero_breakage_extended(enc_mixed) -> TestResult:
     for c in DEV_CONSONANTS:
         for vs in DEV_VOWEL_SIGNS:
             text = c + vs
+            test_count += 1
             tokens = dfa.tokenize(text, leading_space=False)
             if len(tokens) != 1:
                 violations.append(f"  Devanagari C+matra split: '{text}' → {tokens}")
@@ -672,6 +686,7 @@ def test_zero_breakage_extended(enc_mixed) -> TestResult:
     print("  Testing Devanagari C + HAL (terminal virama)...")
     for c in DEV_CONSONANTS:
         text = c + VIRAMA_DEV
+        test_count += 1
         tokens = dfa.tokenize(text, leading_space=False)
         if len(tokens) != 1:
             violations.append(f"  Devanagari C+HAL split: '{text}' → {tokens}")
@@ -680,6 +695,7 @@ def test_zero_breakage_extended(enc_mixed) -> TestResult:
     for c in DEV_CONSONANTS:
         for mod in [ANUSVARA_DEV, VISARGA_DEV, CHANDRABINDU]:
             text = c + mod
+            test_count += 1
             tokens = dfa.tokenize(text, leading_space=False)
             if len(tokens) != 1:
                 violations.append(f"  Devanagari C+mod split: '{text}' → {tokens}")
@@ -689,17 +705,19 @@ def test_zero_breakage_extended(enc_mixed) -> TestResult:
         for vs in list(sorted(DEV_VOWEL_SIGNS))[:5]:
             for mod in [ANUSVARA_DEV, VISARGA_DEV, CHANDRABINDU]:
                 text = c + vs + mod
+                test_count += 1
                 tokens = dfa.tokenize(text, leading_space=False)
                 if len(tokens) != 1:
                     violations.append(f"  Devanagari C+matra+mod split: '{text}' → {tokens}")
 
     status = TestStatus.PASS if not violations else TestStatus.FAIL
-    print(f"\n  Result: {status.value} — Devanagari Violations: {len(violations)}")
+    details = f"Ran {test_count:,} exhaustive breakage tests. Violations: {len(violations)}"
+    print(f"\n  Result: {status.value} — {details}")
     
     return TestResult(
-        name="Zero-Breakage Guarantee",
+        name="Zero-Breakage Guarantee (Devanagari)",
         status=status,
-        details=f"Violations: {len(violations)}",
+        details=details,
         metrics={},
         violations=violations,
     )
@@ -708,13 +726,13 @@ def test_zero_breakage_extended(enc_mixed) -> TestResult:
 def main():
     parser = argparse.ArgumentParser(description="WWHO Battle Test Suite")
     parser.add_argument("--vocab_file", type=str, default="output/vocab.json")
-    parser.add_argument("--test_file", type=str, default="dataset/test.jsonl")
+    parser.add_argument("--test_file", type=str, default="dataset/mixed_test.jsonl")
     parser.add_argument("--full_corpus", type=str, default=None)
     parser.add_argument("--report_output", type=str, default="output/battle_report.json")
     parser.add_argument("--tiktoken_model", type=str, default="o200k_base")
     parser.add_argument("--skip_roundtrip", action="store_true")
-    parser.add_argument("--roundtrip_count", type=int, default=1_000_000)
-    parser.add_argument("--meta_roundtrip_count", type=int, default=100_000)
+    parser.add_argument("--roundtrip_count", type=int, default=0)
+    parser.add_argument("--meta_roundtrip_count", type=int, default=0)
     parser.add_argument("--frontier_samples", type=int, default=500)
     parser.add_argument("--full_eval", action="store_true")
     parser.add_argument(
@@ -785,11 +803,11 @@ def main():
 
     if should_run("zerobreak"):
         report.add(test_zero_breakage_extended(sgpe))
-        report.add(test_zero_breakage_extended(enc_mixed))
+        report.add(test_devanagari_zero_breakage_extended(enc_mixed))
 
     # ── New Multi-Script Batteries ───────────────────────────────────────────
     if should_run("devanagari"):
-        dfa = build_devanagari_linguis_trie()
+        dfa = load_dfa_map("devanagari")["devanagari"]
         report.add(test_devanagari_complexity(dfa))
 
     if should_run("codeswitching"):

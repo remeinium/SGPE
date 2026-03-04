@@ -1,0 +1,166 @@
+Most Abugida scripts share a common linguistic structural invariant: consonants possess an inherent vowel, which is either suppressed by a virama (HAL) or modified by diacritics. Complex conjuncts are formed through the interaction of viramas and Zero-Width Joiners (ZWJ). We hypothesize that syllable segmentation for this family can be formalized as a regular language. 
+
+\begin{definition}
+A perfect, atomic orthographic syllable in a linguistic script is further indivisible, and if divided, one or more segments will become individually meaningless.
+\end{definition}
+
+\subsection{Character Classes}
+We define the following distinct abstract classes based on orthographic roles for Sinhala and Devanagari(Hindi/Sanskrit).
+
+\begin{table}[H]
+\caption{Sinhala Unicode Character Class}
+\label{tab:char_classes}
+\begin{center}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lll}
+\toprule
+Class & Unicode Range & Description \\
+\midrule
+\textbf{C} (consonant) & U+0D9A--U+0DC6 & Base consonants (vyanjana) \\
+\textbf{V} (vowel) & U+0D85--U+0D96 & Independent vowels (svara) \\
+\textbf{P} (pili) & U+0DCF--U+0DDF, U+0DF2--U+0DF3 & Dependent vowel signs (diacritics) \\
+\textbf{H} (HAL) & U+0DCA & Virama (vowel suppressor / ``Hal-Lakuna'') \\
+\textbf{Z} (ZWJ) & U+200D & Zero-Width Joiner (conjunct connector) \\
+\textbf{M} (post-modifier) & U+0D82, U+0D83 & Anusvara and visarga (nasalization and aspiration markers) \\
+\textbf{O} (other) & All else & Non-Sinhala passthrough \\
+\bottomrule
+\end{tabular}}
+\end{center}
+\end{table}
+
+\subsubsection{Formal Definition for Sinhala:}
+A valid Sinhala syllable can be defined over the alphabet $\Sigma_s = \textbf{C} \cup \textbf{V} \cup \textbf{P} \cup \textbf{H} \cup \textbf{Z} \cup \textbf{M}$ matching the regular expression
+\[
+S_s = C (H Z? C)^* (P \mid H)? M? \;\;\mid\;\; V M? \,.
+\]
+This definition captures all linguistically valid syllable forms that consist of independent vowels, conjuncts, viramas (HAL), ZWJs, diacritics, and optional post-modifiers. 
+
+\begin{table}[H]
+\caption{Devanagari Unicode Character Class}
+\label{tab:devanagari_char_classes}
+\begin{center}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}cll@{}}
+\toprule
+\textbf{Class} & \textbf{Unicode Range} & \textbf{Description} \\
+\midrule
+\textbf{C} (consonant) & U+0915--U+0939, U+0958--U+095F, U+0978--U+097F & Base consonants (including nukta-precomposed) \\
+\textbf{V} (vowel) & U+0904--U+0914, U+0960--U+0961, U+0972--U+0977 & Independent vowels \\
+\textbf{P} (matra) & U+093E--U+094C, U+094E--U+094F, U+0955--U+0957, U+0962--U+0963 & Dependent vowel signs (matras) \\
+\textbf{H} (halant) & U+094D & Virama (vowel suppressor / conjunct connector) \\
+\textbf{Z} (ZWJ/ZWNJ) & U+200D, U+200C & Zero-Width Joiner and Non-Joiner \\
+\textbf{N} (nukta) & U+093C & Nukta (diacritic dot for borrowed phonemes) \\
+\textbf{M} (modifier) & U+0900--U+0903, U+093D, U+0950--U+0954, U+1CD0+, U+A8E0+ & Anusvara, chandrabindu, visarga, avagraha, Vedic accents \\
+\textbf{O} (other) & All else & Non-Devanagari passthrough \\
+\bottomrule
+\end{tabular}}
+\end{center}
+\end{table}
+
+\paragraph{Formal Definition for Devanagari:}
+A valid Devanagari syllable is defined over the alphabet $\Sigma_d = \textbf{C} \cup \textbf{V} \cup \textbf{P} \cup \textbf{H} \cup \textbf{Z} \cup \textbf{N} \cup \textbf{M}$ matching the regular expression:
+\begin{equation}
+    S_d = C N? (H Z? C N?)^* (P \mid H)? M^* \mid V M^*
+\end{equation}
+The Devanagari grammar also incorporates the Nukta (N) diacritic. Unlike Sinhala, Devanagari, especially Vedic texts, use multiple modifiers; this definition allows for having $M^*$.
+
+\paragraph{Pass-through tokens:}
+ Any character $c \notin \Sigma$ is considered as under the set $O$ (Other) for both alphabets and is treated as a pass-through token to handle noisy or invalid Unicode text.
+
+\subsection{The Valid Language Schema}
+We define the requirements for a valid language schema to ensure the structural integrity of the syllabification process.
+\begin{definition}
+\label{def:valid_schema}
+A language schema is considered \textbf{valid} if it satisfies the following conditions.
+    \begin{enumerate}
+        \item \textbf{Disjoint Character Classes:} All defined character classes within the schema must be disjoint. No Unicode codepoint should be assigned to more than one named class simultaneously.
+        \item \textbf{Completeness:} The schema must declare at least one non-empty Unicode block range. Every codepoint assigned to a named class must fall within that declared block. Codepoints within the block that are not assigned to any named class are implicitly assigned to class $O$, ensuring no codepoint in the script block is left unclassified.
+        \item \textbf{Determinism:} The DFA transition function is deterministic, which means that each state has at most one transition for a given class. Undefined transitions (marked as `---') are explicit boundary signals used to trigger the emission of the last accepted syllable.
+        \item \textbf{Emit State Isolation:} Both emit states, ORPHAN and PASSTHROUGH, must have no outgoing transitions, and must only be reachable directly from the START state. This ensures that the emit states produce only one single string, before the scanner continues to the START state to extract the next syllable.
+        \item \textbf{Grammar Alignment:} The language recognized by the DFA via its set of accept states must be identical to the language generated by the formal grammar $S$ defined within the schema (e.g., $S_s$ or $S_d$).
+        \item \textbf{Maximal-Munch Consistency:} The DFA must operate as a Maximal Munch (greedy longest-match) scanner. Instead of stopping at the first valid syllable boundary, the machine must continue to evaluate subsequent characters and extract the longest possible valid syllable.
+
+        e.g: When considering the string `\sn{ක්‍රෝ}', it is made up as: \sn{ක + ් + [ZWJ] + ර + ෝ}. Instead of stopping at the syllable \sn{`ක'} and extracting it, the DFA must continue to grab the full syllable \sn{`ක්‍රෝ'}.
+    \end{enumerate}
+\end{definition}
+
+\subsection{The Language is Regular}
+\begin{proposition}
+Most Abugida scripts, including Sinhala and Devanagari, can be represented by regular expressions, and therefore, they are regular languages.
+\end{proposition}
+
+\textbf{Proof.} Because $S$ ($S_s$ or $S_d$) is a regular expression and regular expressions define regular languages. 
+
+We present the following DFA (Deterministic Finite Automaton) transition tables, declared according to the `Valid Language Schema' conditions as defined, for Sinhala and Devanagari.
+
+\begin{table}[H]
+\centering
+\caption{DFA Transition Table for Sinhala Syllable Recognition}
+\label{tab:sinhala_dfa}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}cccccccc@{}}
+\toprule
+\textbf{State} & \textbf{C} & \textbf{V} & \textbf{H} & \textbf{P} & \textbf{Z} & \textbf{M} & \textbf{O} \\ 
+\midrule
+START        & IN\_CLUSTER & IN\_VOWEL & ORPHAN     & ORPHAN     & ORPHAN    & ORPHAN & PASSTHROUGH \\
+IN\_CLUSTER  & ---         & ---       & HAL\_SEEN  & PILI\_SEEN & ---       & ACCEPT & --- \\
+HAL\_SEEN    & IN\_CLUSTER & ---       & ---        & ---        & ZWJ\_SEEN & ACCEPT & --- \\
+ZWJ\_SEEN    & IN\_CLUSTER & ---       & ---        & ---        & ---       & ---    & --- \\
+PILI\_SEEN   & ---         & ---       & ---        & ORPHAN     & ---       & ACCEPT & --- \\
+IN\_VOWEL    & ---         & ---       & ---        & ---        & ---       & ACCEPT & --- \\
+ACCEPT       & ---         & ---       & ---        & ---        & ---       & ---    & --- \\
+\bottomrule
+\end{tabular}%
+}
+
+\vspace{2mm}
+\begin{center}
+\small
+\textbf{Legend:} C = Consonant, V = Independent Vowel, H = Hal/Virama, P = Dependent Vowel (Pili), \\
+Z = Zero-Width Joiner, M = Modifier (Anusvara/Visarga), O = Other. \\
+--- = No valid transition (syllable boundary signal) 
+\end{center}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{DFA Transition Table for Devanagari Syllable Recognition}
+\label{tab:devanagari_dfa}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}ccccccccc@{}}
+\toprule
+\textbf{State} & \textbf{C} & \textbf{V} & \textbf{H} & \textbf{P} & \textbf{Z} & \textbf{N} & \textbf{M} & \textbf{O} \\ 
+\midrule
+START         & IN\_CLUSTER & IN\_VOWEL & ORPHAN     & ORPHAN     & ORPHAN    & ORPHAN & ORPHAN       & PASSTHROUGH \\
+IN\_CLUSTER   & ---         & ---       & HAL\_SEEN  & PILI\_SEEN & ---       & NUKTA\_SEEN & IN\_CLUSTER\_M & --- \\
+NUKTA\_SEEN   & ---         & ---       & HAL\_SEEN  & PILI\_SEEN & ---       & ---    & IN\_CLUSTER\_M & --- \\
+HAL\_SEEN     & IN\_CLUSTER & ---       & ---        & ---        & ZWJ\_SEEN & ---    & ACCEPT       & --- \\
+ZWJ\_SEEN     & IN\_CLUSTER & ---       & ---        & ---        & ---       & ---    & ---          & --- \\
+PILI\_SEEN    & ---         & ---       & ---        & ORPHAN     & ---       & ---    & IN\_CLUSTER\_M & --- \\
+IN\_CLUSTER\_M & ---        & ---       & ---        & ---        & ---       & ---    & IN\_CLUSTER\_M & --- \\
+IN\_VOWEL     & ---         & ---       & ---        & ---        & ---       & ---    & IN\_VOWEL\_M & --- \\
+IN\_VOWEL\_M  & ---         & ---       & ---        & ---        & ---       & ---    & IN\_VOWEL\_M & --- \\
+ACCEPT        & ---         & ---       & ---        & ---        & ---       & ---    & ---          & --- \\
+\bottomrule
+\end{tabular}%
+}
+
+\vspace{2mm}
+\begin{center}
+\small
+\textbf{Legend:} C = Consonant, V = Independent Vowel, H = Virama/Halant, P = Dependent Vowel (Matra), \\
+Z = Zero-Width Joiner/Non-Joiner, N = Nukta, M = Modifier (Anusvara/Chandrabindu/Visarga etc.), O = Other. \\
+--- = No valid transition (syllable boundary signal) 
+\end{center}
+\end{table}
+
+The DFA identifies a syllable boundary using the states. The accepting states for Sinhala are IN\_CLUSTER, IN\_VOWEL, HAL\_SEEN, ZWJ\_SEEN, PILI\_SEEN, and ACCEPT. For Devanagari, the set is extended to include NUKTA\_SEEN, IN\_CLUSTER\_M, and IN\_VOWEL\_M.
+
+\subsection{Zero-Breakage Guarantee}
+\begin{definition}A tokenizer $T$ satisfies the Zero-Breakage Guarantee for a given language schema with grammar $S$ if it satisfies two conditions.
+Let $T(w) = t_1,t_2,t_3,...,t_n$ be the sequence of tokens produced for an input string $w$.
+\begin{enumerate}
+    \item Losslessness: The concatenation of all tokens must perfectly reconstruct the original string $w$ ($w = t_1\cdot t_2 \cdot t_3 ... \cdot t_n$), with the exception that any character missing from the vocabulary or removed during pruning is replaced with the \texttt{[UNK]} token.
+    \item Linguistic Integrity:   Each token $t_i$ is composed of one or more complete atomic syllables accepted by $S$, or a single passthrough character (class $O$ or $ORPHAN$).
+\end{enumerate}
+\end{definition}

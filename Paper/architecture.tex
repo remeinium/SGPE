@@ -1,0 +1,118 @@
+The WWHO breaks down the tokenization process into first principles using three layers, based on the concepts of Where, What, and How Often. This approach enables more effective training of multilingual tokenizers by addressing Abugida issues and seamlessly integrating with current frontier tokenization approaches, without replacing existing methods. The architecture is completely language independent. The linguistic constraints and formal grammar of a specific script, such as the character class, the DFA transition table, and Unicode block ranges, are separated from the core algorithm and defined dynamically via an external \texttt{JSON} Schema, allowing WWHO to support any Abugida or complex script without modifying the codebase, simply by swapping the schema file. To add a new linguistic script, it's enough to add only a new language-specific \texttt{JSON} file.  Both Router and LinguisTrie use the same schema files.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[scale=0.07]{FIGS/ARCHITECTURE.png}
+  \caption{WWHO architecture.}
+  \label{fig:arch}
+\end{figure}
+
+\subsection{Layer 1: Router (The ``Where'')}
+The real-world data are multilingual code-switching text, rather than pure monoscripted text. Since BPE is highly effective for Latin scripts such as English, we don't deprecate it. Instead, the WWHO implements a targeted, localized routing layer that scans the text in a single pass using a Unicode range block scanner. The scanned text is cleanly partitioned into Abugida and Non-Abugida segments. In this partitioning, the router detects leading spaces and flags them for the next LinguisTrie layer to attach to. Once segmented, the text is routed to its respective specialists. 
+
+\subsubsection{Unicode-based Script Identification}
+To demonstrate the architecture, we use 3 different script types as follows.
+\begin{enumerate}
+    \item Sinhala: \texttt{[U+0D80]-[U+0DFF]}
+    \item Devanagari: \texttt{[U+0900]-[U+097F]}
+    \item Other: which do not belong to the above two categories, such as Latin/ASCII/Code/Digits/Emojis, etc.  
+\end{enumerate}
+
+Symbols such as Devanagari Punctuation (Dandas - \texttt{(U+0964)}, \texttt{(U+0965)}) are also considered as native characters and are included in the relevant block.
+
+\subsubsection{Script Boundaries}
+The router performs an O(N) linear scan over the text, classifying each character in O(1) time to identify script transitions. It enforces a Hard Script Boundary even in the absence of whitespace, resulting in an explicit partitioning of text into distinct language segments.
+\begin{center}
+e.g., `\sn{ඇ}pple' is segmented into `\sn{ඇ}' and `pple'
+\end{center}
+
+\paragraph{ZWJ/ZWNJ Handling:} 
+Since complex conjuncts in such Abugida scripts are made up with invisible Unicode characters such as Zero-Width-Joiner (U+200D) and Zero-Width-Non-Joiner (U+200C) can cause incorrect script segmentation. But our router explicitly absorbs such joiners into the correct segment, preventing incorrect script boundaries. This further assists the next layer, LinguisTrie, in performing accurate syllabification, and it's fundamental to ensuring Zero Breakage Guarantee.
+
+\subsubsection{Routing Policy}
+Each segment is then routed to the appropriate tokenizer. Then the SGPE encodes Abugida segments, while other Non-Abugida segments are encoded by the standard BPE. This decoupling enables SGPE integration with existing Latin-specialized BPE tokenizers while preserving the linguistic integrity of complex Abugida scripts.
+
+\subsection{Layer 2: LinguisTrie (The ``What'')}
+The LinguisTrie, a DFA-based lexical scanner, is the layer responsible for grouping the Abugida text segments sent by the router, according to their Unicode codepoints, into Atomic Orthographic Syllables following the DFA and grammar defined in Section 3.  It operates with $O(N)$ time complexity by performing a single linear scan over the text.
+
+\subsubsection{The Syllabification Algorithm}
+\paragraph{Leading space handling:}
+LinguisTrie captures the leading space flagged by the router and attaches it to the first identified syllable in a string. It attaches only one space character, and other whitespace (tabs, newlines) are emitted standalone.
+
+\begin{proposition}
+The LinguisTrie correctly extracts Atomic Orthographic Syllables from any valid Unicode string defined via a valid language schema as defined in Section 3.2 (Definition~\ref{def:valid_schema}).
+\end{proposition}
+
+\begin{proof}
+LinguisTrie strictly follows the mechanism below to extract perfect, atomic orthographic syllables from a given string:
+\begin{enumerate}
+    \item \textbf{Direct Grammar Mapping:} Every transition of the DFA is designed to follow the syllable grammar, the Regex ($S_s$ or $S_d$) defined within the script. Hence, the machine only moves forward if a syllable can be extracted from the given string.
+    \item \textbf{Maximal Munch (Greedy Longest Match):} The machine doesn't stop immediately once it finds a syllable. Instead, it continues to check whether the syllable can have a further expanded form.
+    \item \textbf{{last\_accept\_pos:}} The machine remembers the last accept state at which it found a valid transition according to the grammar. When moving forward, it never fails if it meets an invalid character. It moves back and emits the last valid syllable. Hence, the syllable is always a valid atomic orthographic syllable.
+    \item \textbf{Passthrough and Orphan handling:} If it finds a character belonging to class $O$ (Other), which is outside of the script's alphabet or if it finds an $ORPHAN$, which can be a part of a syllable, but individually meaningless (eg: an individual HAL sign), it emits that as a single string to ensure the Losslessness principle.
+\end{enumerate}
+\end{proof}
+
+\textbf{Example Sinhala Syllabification}
+
+\begin{tabular}{@{}l@{ }l@{}}
+\textbf{Input} & : \sn{චන්ද්‍රයාගේ ආලෝකය පෘථිවියට ක්ෂණිකව නොලැබේ.} \\[6pt]
+\textbf{Syllables} & : [\sn{`ච', `න්ද්‍ර', `යා', `ගේ', `ආ', `ලෝ', `ක', `ය',}\\
+& \phantom{: [}\sn{`පෘ', `ථි', `වි', `ය', `ට', `ක්ෂ', `ණි', `ක', `ව', `නො', `ලැ', `බේ', `.']} \\[6pt]
+\end{tabular}
+
+\textbf{Example Devanagari Syllabification}
+
+\begin{tabular}{@{}l@{ }l@{}}
+\textbf{Input} & : \dev{विद्यालय में पढ़ाई होती है।} \\[6pt]
+\textbf{Syllables} & : [\dev{`वि'}, \dev{`द्या'}, \dev{`ल'}, \dev{`य'}, \dev{`में'}, \dev{`प'}, \\
+& \phantom{: [}\dev{`ढ़ा'}, \dev{`ई'}, \dev{`हो'}, \dev{`ती'}, \dev{`है'}, \dev{`।'}] \\[6pt]
+\end{tabular}
+
+\subsection{Layer 3: SGPE and Meta Vocabulary}
+\subsubsection{Syllable-aware Grapheme Pair Encoding}
+While SGPE only merges the well-extracted, word boundary-aware atomic Abugida syllable pairs, which are also Unicode grapheme clusters, all non-Abugida text segments are processed by an existing BPE algorithm, and, for the demonstration, we used OpenAI's o200k\_base as the BPE tokenizer.
+Velayuthan et al. (2025) introduced the GPE (Grapheme Pair Encoding) concept by replacing BPE's atomic unit (the byte) with Unicode grapheme clusters. SGPE extends this principle one level further: the atomic unit is a perfect Atomic Orthographic Syllable as defined in Section 3. 
+Other than the following differences, SGPE is the same BPE algorithm:
+\begin{enumerate}
+\item \textbf{Syllabic initialization:} The base Abugida vocabulary is initialized with atomic syllables and passthrough characters emitted by LinguisTrie.
+\item \textbf{Boundary-aware scoping:}
+Unlike BPE, SGPE merges consider the word boundaries by any non-Abugida characters, punctuations, digits, in addition to white spaces.
+\item \textbf{Pruning:} 
+To ensure the vocabulary allows for more unique and frequently used merges, SGPE implements a pruning mechanism that replaces syllables below a defined threshold, the prune frequency, as `\texttt{[UNK]}' tokens. The result is that any Unicode sequence that appears less than the prune frequency is not included in the vocabulary, keeping it cleaned from most malformed Unicode sequences or typographical noise and valid but extremely rare tokens.
+\end{enumerate}
+
+\begin{proposition}
+The WWHO architecture ensures the Zero-Breakage Guarantee.
+\end{proposition}
+
+\begin{proof}
+Since the Router performs only a simple partitioning operation on a given string $w$ without any deletion or modification, the character sequence is preserved. Then, as a complete scanner, LinguisTrie ensures no character is discarded at the syllabification stage.  Since the SGPE layer only performs the merging on these units without modifying the characters, the Losslessness requirement ($w = t_1\cdot t_2 \cdot t_3 ... \cdot t_n$) is satisfied (subject to \texttt{[UNK]}).
+
+Inheriting Proof of Proposition 2 made in Section 4.2, SGPE only merges either perfect Atomic Orthographic Syllables accepted by $S$ or fallback strings (Orphan/Passthrough). This satisfies the 2nd requirement for the Zero-Breakage guarantee, and the proposition follows.
+\end{proof}
+
+\subsection{Unified Meta-Vocabulary}
+We introduce the Unified Meta-Vocabulary approach to prevent Abugida tokens processed by SGPE and non-Abugida tokens processed by BPE IDs from colliding with each other.
+
+Let $V_{BPE}$ be the vocabulary size of the BPE tokenizer (e.g., $V_{BPE}=200,019$ for \texttt{o200k\_base}), and $V_{SGPE}$ be the size of the tokenized SGPE vocabulary. The WWHO architecture sequentially maps the ID spaces into a contiguous array:
+\begin{align*}
+    \text{ID } 0 \dots (V_{BPE}-1) &\longrightarrow \text{non-Abugida (via } \texttt{BPE}) \\
+    \text{ID } V_{BPE} \dots (V_{BPE} + V_{SGPE} - 1) &\longrightarrow \text{Abugida (via SGPE)}
+\end{align*}
+
+During tokenization, a $V_{BPE}$ offset is applied to all SGPE-generated IDs to align them within the unified meta-vocabulary. This prevents ID collisions and enables the model to deal with multiple scripts in a single embedding space. In inference, the process is reversed for detokenization.
+
+\subsubsection{End-to-End Execution Trace}
+To illustrate the complete workflow, consider the code-switched input: ``\sn{ඔයා} 1 special \dev{अद्भुत}''.
+
+\begin{enumerate}
+    \item \textbf{Router (Layer 1):} The input is partitioned into script-specific segments: the Sinhala segment ``\sn{ඔයා}'', the Other segment `` 1 special'', and the Devanagari segment `` \dev{अद्भुत}''. The leading space before the Devanagari word is flagged for internal attachment.
+    \item \textbf{LinguisTrie (Layer 2):} The Abugida segments are decomposed into atomic orthographic syllables. The Sinhala segment produces \texttt{["\sn{ඔ}", "\sn{යා}"]} and the Devanagari segment produces \texttt{["\dev{ अ}", "\dev{द्भु}", "\dev{त}"]}.
+    \item \textbf{SGPE and BPE (Layer 3):} Final tokens are generated based on the learned vocabulary. Non-Abugida segments are processed via the foundation BPE, while Abugida syllables are merged by SGPE.
+\end{enumerate}
+
+The final tokenization result is:
+\begin{center}
+\texttt{["\sn{ඔයා}", " ", "1", " special", "\dev{ अद्भुत}"]}
+\end{center}

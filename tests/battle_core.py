@@ -506,7 +506,7 @@ def test_linguistic_complexity(sgpe: SGPEEncoder) -> TestResult:
         category_stats[category]["total"] += 1
 
         try:
-            l1_tokens = sgpe.tokenizer.tokenize(word, leading_space=sgpe.leading_space)
+            l1_tokens = sgpe._dfa_map["sinhala"].tokenize(word, leading_space=sgpe.leading_space)
         except Exception as e:
             violations.append(f"  CRASH on '{word}' ({category}): {e}")
             category_stats[category]["fail"] += 1
@@ -556,7 +556,7 @@ def test_linguistic_complexity(sgpe: SGPEEncoder) -> TestResult:
     for word, category in tqdm(word_bank[:500], desc="  leading-space check", unit=" word"):
         spaced_word = " " + word
         try:
-            l1_tokens = sgpe.tokenizer.tokenize(spaced_word, leading_space=sgpe.leading_space)
+            l1_tokens = sgpe._dfa_map["sinhala"].tokenize(spaced_word, leading_space=sgpe.leading_space)
             for i, tok in enumerate(l1_tokens):
                 clean_tok = tok
                 if clean_tok.startswith(LEADING_SPACE_CHAR):
@@ -1308,7 +1308,7 @@ def test_boundary_edge_cases(sgpe: SGPEEncoder) -> TestResult:
     # Words in sentence context — each non-initial word should get Ġ
     sentence = "මම ටොකනයිසර් එකක් සාදමි"
     tokens = sgpe.tokenize(sentence)
-    l1_tokens = sgpe.tokenizer.tokenize(sentence, leading_space=sgpe.leading_space)
+    l1_tokens = sgpe._dfa_map["sinhala"].tokenize(sentence, leading_space=sgpe.leading_space)
 
     # Count space-prefixed tokens in Layer 1
     g_count = sum(1 for t in l1_tokens if t.startswith(LEADING_SPACE_CHAR))
@@ -1377,7 +1377,7 @@ def test_zero_breakage_extended(sgpe: SGPEEncoder) -> TestResult:
     violations = []
     test_count = 0
 
-    tokenizer = sgpe.tokenizer
+    tokenizer = sgpe._dfa_map["sinhala"]
 
     # ── Test A: C + HAL + ZWJ + C (all consonant pairs for yansaya/rakaransaya) ──
     print("  Testing all C + HAL + ZWJ + C pairs...")

@@ -3,7 +3,14 @@
     "language": "sinhala",
     "script_family": "abugida",
     "grammar_notation": "C (H Z? C)* (P | H)? M? | V M?",
+    "unicode_blocks": [
+        [
+            "0D80",
+            "0DFF"
+        ]
+    ],
     "char_classes": {
+        "_note": "Independent punctuation such as Kundaliya (U+0DF4) defaults to the O (Other) class because they do not form syllables, naturally routing them to the PASSTHROUGH emit state.",
         "C": {
             "_description": "Consonants (vyanjana) U+0D9A–U+0DC6",
             "ranges": [

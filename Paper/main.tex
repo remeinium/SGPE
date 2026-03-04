@@ -1,0 +1,114 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{amsthm}
+\usepackage{xcolor}
+\usepackage[numbers]{natbib}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{tikz}
+
+% === STYLING ===
+\usepackage[margin=1.25in, top=1.25in, bottom=1.5in]{geometry}
+\usepackage{mathpazo} % Palatino font 
+\usepackage{setspace}
+\setstretch{1.05} % Slight line stretch for readability
+\usepackage{float}
+\usepackage{minted}
+\usepackage{parskip}
+\usepackage{amsthm}
+
+% === UNICODE + SINHALA SUPPORT ===
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\usepackage{newunicodechar}
+
+% 1. Set the languages
+\setdefaultlanguage{english}
+\setotherlanguage{sinhala}
+\setotherlanguage{malayalam}
+\setotherlanguage{devanagari}
+\setotherlanguage{any}
+
+% 2. Set the main Latin (English) font
+\setmainfont[Path=./, Scale=1.0, AutoFakeBold=1.5, AutoFakeSlant=0.2]{cmunrm.ttf}
+
+% 3. Set the Sinhala font family
+\newfontfamily{\sinhalafont}[Path=./, Script=Sinhala, Scale=1.05, AutoFakeBold=1.5]{NotoSinhala.ttf}
+\newfontfamily{\malayalamfont}[Path=./, Script=Malayalam, Scale=1.05, AutoFakeBold=1.5]{NotoSansMalayalam.ttf}
+\newfontfamily{\devanagarifont}[Path=./, Script=Devanagari, Scale=1.05, AutoFakeBold=1.5]{NotoSansDevanagari.ttf}
+\newfontfamily{\dejavu}[Path=./, Scale=1.05, AutoFakeBold=1.5]{DejaVuSans.ttf}
+
+% --- Math Environments ---
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{proposition}{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+% Convenient macro — use everywhere
+\newcommand{\sn}[1]{{\sinhalafont #1}}
+\newcommand{\dev}[1]{{\devanagarifont #1}}
+\newcommand{\ml}[1]{{\malayalamfont #1}}
+\newcommand{\dejv}[1]{{\dejavu #1}}
+
+\title{Separate Before You Compress: The WWHO Tokenization Architecture}
+
+\author{
+  \textbf{Kusal Darshana} \\
+  Remeinium Research \\
+  \texttt{thekusaldarshana@remeinium.com}
+}
+\setlength{\parskip}{0.9em}
+\parindent0pt
+
+\makeatletter
+\def\thm@space@setup{%
+  \thm@preskip=0.9em
+  \thm@postskip=0.9em
+}
+\makeatother
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\input{abstract}
+\end{abstract}
+
+Keywords---Tokenizer, Token Tax, Abugida, Sinhala, Hindi, BPE, GPE, SGPE, WWHO, zero-breakage guarantee, NLP
+
+\section{Introduction}
+\input{introduction}
+
+\section{Background}
+\input{background}
+
+\section{A Regular-Language Framework for Abugida Syllables}
+\input{syllable_structure}
+
+\section{The WWHO Architecture}
+\input{architecture}
+
+\section{Training \& Evaluation}
+\input{training}
+
+\section{Conclusion}
+\input{conclusion}
+
+\section*{Acknowledgements}
+The author is deeply grateful to Dr. Nisansa de Silva for all the invaluable support and guidance on this research. We thank the Polyglots FYP\cite{polyglots}, Allen AI\cite{allen2023madlad400}, Mr. Kartik\cite{hicm2024synthetic}, and Mr. Muxin Tian\cite{cc100sinhala} for open-sourcing the datasets we used to create ours\cite{wwho30m}.
+We also acknowledge OpenAI\cite{tiktoken}, Meta\cite{llama4scout}, and DeepSeek\cite{deepseekv3} for their contributions by open-sourcing frontier tokenizers, which served as essential baselines for our evaluation.
+
+\bibliographystyle{plainnat} 
+\bibliography{refs}
+
+\end{document}

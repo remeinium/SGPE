@@ -3,7 +3,14 @@
     "language": "devanagari",
     "script_family": "abugida",
     "grammar_notation": "C N? (H Z? C N?)* (P | H)? M* | V M*",
+    "unicode_blocks": [
+        [
+            "0900",
+            "097F"
+        ]
+    ],
     "char_classes": {
+        "_note": "Independent punctuation such as Danda (U+0964) and Double Danda (U+0965) naturally default to the O (Other) class, routing to the PASSTHROUGH emit state. They sit within the 0900-097F unicode block so they route correctly to Devanagari.",
         "C": {
             "_description": "Consonants U+0915–U+0939, U+0958–U+095F (NFC precomposed with Nukta), U+0978–U+097F (extended)",
             "ranges": [
