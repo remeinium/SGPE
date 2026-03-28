@@ -1,9 +1,9 @@
 # Separate before you Compress
 
-<!-- **Remeinium Research**  
-[remeinium.com](https://remeinium.com) | [Paper](https://arxiv.org/abs/...) | [Tokenizer](https://huggingface.co/remeinium/WWHO) | [Dataset](https://huggingface.co/datasets/remeinium/WWHO_Cleaned_30m) 
+**Remeinium Research**  
+[remeinium.com](https://remeinium.com) | [Paper](https://arxiv.org/abs/2603.25309) | [Architecture Visualization](https://wwhoflow.remeinium.com) | [Tokenizer](https://huggingface.co/remeinium/WWHO) | [Dataset](https://huggingface.co/datasets/remeinium/WWHO_30m) 
 
---- -->
+--- 
 
 ## The Next Architectural Primitive in Tokenization
 
@@ -88,8 +88,7 @@ print(tokenizer.encode(text))
 
 ## Resources
 
-<!-- 
-- **Research Paper**: “The Syllable is the Token: Breaking the Token Tax with SGPE” (Remeinium Research, February 2026)   -->
+- **Research Paper**: “Seperate before you Compress: The WWHO Tokenization Architecture”: [Read on arXiv](https://arxiv.org/abs/2603.25309)
 - **Pre-trained Tokenizer**: [Hugging Face](https://huggingface.co/remeinium/WWHO)  
 - **Cleaned Training Corpus**: [Hugging Face](https://huggingface.co/datasets/remeinium/WWHO_30m)  
 - **Full Code & Evaluation Harness**: [GitHub](https://github.com/remeinium/WWHO)  
